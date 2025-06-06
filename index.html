@@ -1,638 +1,935 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>App de Câmera Android</title>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #fff; display: flex; flex-direction: column; align-items: center; }
-        #videoContainer, #photoContainer, #controls, #galleryContainer { max-width: 600px; width: 100%; margin-top: 20px; position: relative; }
-        video, canvas, img { width: 100%; aspect-ratio: 9/16; object-fit: cover; border-radius: 8px; background: #000; }
-        #controls { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 10px; }
-        button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; font-size: 1em; }
-        button:hover, select:hover, input[type=range]:hover { background: #555; cursor: pointer; }
-        input[type=range] { -webkit-appearance: none; background: transparent; width: 100%; margin: 10px 0; }
-        input[type=range]:focus { outline: none; }
-        input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #0f0; border-radius: 50%; margin-top: -6px; }
-        input[type=range]::-moz-range-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
-        input[type=range]::-moz-range-thumb { width: 16px; height: 16px; background: #0f0; border-radius: 50%; border: none; }
-        #zoomTicks, #zoomTicksVideo { display: flex; justify-content: space-between; font-size: 0.75em; margin-top: -8px; color: #888; }
-        #focusControls, #focusControlsPhoto { display: flex; gap: 10px; margin-top: 10px; }
-        #optControls { display: flex; flex-direction: column; margin-top: 10px; }
-        #optControls label { margin: 5px 0; }
-        #timerDisplay, #zoomDisplay, #fpsDisplay { font-size: 1em; margin: 5px; display: inline-block; }
-        #galleryItems { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-        .gallery-item { position: relative; }
-        .gallery-item img, .gallery-item video { max-height: 200px; }
-        .gallery-item button, .gallery-item a { position: absolute; top: 5px; right: 5px; padding: 5px; background: rgba(0,0,0,0.7); color: #fff; text-decoration: none; }
-        #gridOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
-        #gridOverlay::before { background: 
-            linear-gradient(to right, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%),
-            linear-gradient(to bottom, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%);
-            background-size: 100% 100%; background-repeat: no-repeat;
-        }
-        #focusOverlay, #focusOverlayPhoto { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
-        #focusOverlay .focus-box, #focusOverlayPhoto .focus-box { position: absolute; top: 50%; left: 50%; width: 60%; height: 60%; transform: translate(-50%, -50%); border: 2px solid #0f0; }
-        #pipView { position: absolute; top: 10px; right: 10px; width: 100px; height: 178px; border: 2px solid #fff; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App de Câmera Android</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #videoContainer,
+    #photoContainer,
+    #controls,
+    #galleryContainer {
+      max-width: 600px;
+      width: 100%;
+      margin-top: 20px;
+      position: relative;
+    }
+    video, canvas, img {
+      width: 100%;
+      aspect-ratio: 9/16;
+      object-fit: cover;
+      border-radius: 8px;
+      background: #000;
+    }
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      margin-top: 10px;
+    }
+    button, select, input[type=range] {
+      margin: 5px;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: #333;
+      color: #fff;
+      font-size: 1em;
+    }
+    button:hover, select:hover, input[type=range]:hover {
+      background: #555;
+      cursor: pointer;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+      width: 100%;
+      margin: 10px 0;
+    }
+    input[type=range]:focus {
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #0f0;
+      border-radius: 50%;
+      margin-top: -6px;
+    }
+    input[type=range]::-moz-range-track {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: #0f0;
+      border-radius: 50%;
+      border: none;
+    }
+    #zoomTicks, #zoomTicksVideo {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75em;
+      margin-top: -8px;
+      color: #888;
+    }
+    #focusControls, #focusControlsPhoto {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    #optControls {
+      display: flex;
+      flex-direction: column;
+      margin-top: 10px;
+    }
+    #optControls label {
+      margin: 5px 0;
+    }
+    #timerDisplay, #zoomDisplay, #fpsDisplay {
+      font-size: 1em;
+      margin: 5px;
+      display: inline-block;
+    }
+    #galleryItems {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .gallery-item {
+      position: relative;
+    }
+    .gallery-item img, .gallery-item video {
+      max-height: 200px;
+    }
+    .gallery-item button, .gallery-item a {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      padding: 5px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      text-decoration: none;
+    }
+    #gridOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: none;
+    }
+    #gridOverlay::before {
+      background:
+        linear-gradient(to right, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%),
+        linear-gradient(to bottom, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%);
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+    }
+    #focusOverlay, #focusOverlayPhoto {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: none;
+    }
+    #focusOverlay .focus-box, #focusOverlayPhoto .focus-box {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 60%;
+      height: 60%;
+      transform: translate(-50%, -50%);
+      border: 2px solid #0f0;
+    }
+    #pipView {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 100px;
+      height: 178px;
+      border: 2px solid #fff;
+    }
+  </style>
 </head>
 <body>
-    <h2>App de Câmera Android</h2>
-    <div id="modeSelector">
-        <button id="photoModeBtn">Modo Foto</button>
-        <button id="videoModeBtn">Modo Vídeo</button>
-        <button id="galleryBtn">Galeria</button>
+  <h2>App de Câmera Android</h2>
+  <div id="modeSelector">
+    <button id="photoModeBtn">Modo Foto</button>
+    <button id="videoModeBtn">Modo Vídeo</button>
+    <button id="galleryBtn">Galeria</button>
+  </div>
+
+  <!-- Contêiner de vídeo -->
+  <div id="videoContainer" style="display:none;">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="pipView"></canvas>
+    <div id="focusOverlay"><div class="focus-box"></div></div>
+    <div style="position:absolute; top:10px; left:10px; display:flex; gap:8px;">
+      <div id="zoomDisplay">1x</div>
+      <div id="fpsDisplay">FPS: --</div>
+    </div>
+    <div id="gridOverlay"></div>
+  </div>
+  <!-- Controles principais -->
+  <div id="controls" style="display:none;"></div>
+
+  <!-- Timer, foco e gravação -->
+  <div id="recordControls" style="display:none;">
+    <span id="timerDisplay">00:00</span>
+    <button id="pauseRecordingBtn" style="display:none;">Pausar</button>
+    <button id="resumeRecordingBtn" style="display:none;">Retomar</button>
+    <button id="stopRecordingBtn" style="display:none;">Encerrar</button>
+    <button id="micToggleBtn" style="background:#0066cc;">Mic: On</button>
+
+    <div id="focusControls">
+      <button id="autoFocusBtn">Foco Automático</button>
+      <button id="manualFocusBtn">Foco Manual</button>
+      <input type="range" id="focusSlider" min="0" max="1" step="0.01" value="0.5" style="display:none;">
+    </div>
+  </div>
+
+  <!-- Contêiner foto/canvas e otimização -->
+  <div id="photoContainer" style="display:none;">
+    <canvas id="photoCanvas"></canvas>
+    <div id="focusOverlayPhoto"><div class="focus-box"></div></div>
+
+    <!-- Barra de Zoom Foto -->
+    <input type="range" id="zoomBar" min="0.5" max="100" step="0.1" value="1">
+    <div id="zoomTicks">
+      <span>0.5x</span><span>1x</span><span>2x</span><span>5x</span><span>10x</span><span>25x</span><span>50x</span><span>75x</span><span>100x</span>
     </div>
 
-    <!-- Contêiner de vídeo -->
-    <div id="videoContainer" style="display:none;">
-        <video id="video" autoplay playsinline></video>
-        <canvas id="pipView"></canvas>
-        <div id="focusOverlay"><div class="focus-box"></div></div>
-        <div style="position:absolute; top:10px; left:10px; display:flex; gap:8px;">
-            <div id="zoomDisplay">1x</div>
-            <div id="fpsDisplay">FPS: --</div>
-        </div>
-        <div id="gridOverlay"></div>
-    </div>
-    <!-- Controles principais -->
-    <div id="controls" style="display:none;"></div>
-
-    <!-- Timer, foco e gravação -->
-    <div id="recordControls" style="display:none;">
-        <span id="timerDisplay">00:00</span>
-        <button id="pauseRecordingBtn" style="display:none;">Pausar</button>
-        <button id="resumeRecordingBtn" style="display:none;">Retomar</button>
-        <button id="stopRecordingBtn" style="display:none;">Encerrar</button>
-        <button id="micToggleBtn" style="background:#0066cc;">Mic: On</button>
-        <div id="focusControls">
-            <button id="autoFocusBtn">Foco Automático</button>
-            <button id="manualFocusBtn">Foco Manual</button>
-            <input type="range" id="focusSlider" min="0" max="1" step="0.01" value="0.5" style="display:none;">
-        </div>
+    <div id="focusControlsPhoto">
+      <button id="autoFocusBtnPhoto">Foco Automático</button>
+      <button id="manualFocusBtnPhoto">Foco Manual</button>
+      <input type="range" id="focusSliderPhoto" min="0" max="1" step="0.01" value="0.5" style="display:none;">
     </div>
 
-    <!-- Contêiner foto/canvas e otimização -->
-    <div id="photoContainer" style="display:none;">
-        <canvas id="photoCanvas"></canvas>
-        <div id="focusOverlayPhoto"><div class="focus-box"></div></div>
-        <!-- Barra de Zoom Foto -->
-        <input type="range" id="zoomBar" min="0.5" max="100" step="0.1" value="1">
-        <div id="zoomTicks">
-            <span>0.5x</span><span>1x</span><span>2x</span><span>5x</span><span>10x</span><span>25x</span><span>50x</span><span>75x</span><span>100x</span>
-        </div>
-        <div id="focusControlsPhoto">
-            <button id="autoFocusBtnPhoto">Foco Automático</button>
-            <button id="manualFocusBtnPhoto">Foco Manual</button>
-            <input type="range" id="focusSliderPhoto" min="0" max="1" step="0.01" value="0.5" style="display:none;">
-        </div>
-        <div id="optControls" style="display:none;">
-            <label>Saturação: <input type="range" id="saturation" min="0" max="200" value="100"></label>
-            <label>Brilho: <input type="range" id="brightness" min="0" max="200" value="100"></label>
-            <label>Contraste: <input type="range" id="contrast" min="0" max="200" value="100"></label>
-            <label>Nitidez: <input type="range" id="sharpness" min="0" max="200" value="100"></label>
-            <button id="applyOptim">Aplicar Otimização</button>
-            <button id="saveEditedPhotoBtn">Salvar Edição</button>
-        </div>
-        <button id="gridToggleBtn">Grade: Off</button>
+    <div id="optControls" style="display:none;">
+      <label>Saturação: <input type="range" id="saturation" min="0" max="200" value="100"></label>
+      <label>Brilho: <input type="range" id="brightness" min="0" max="200" value="100"></label>
+      <label>Contraste: <input type="range" id="contrast" min="0" max="200" value="100"></label>
+      <label>Nitidez: <input type="range" id="sharpness" min="0" max="200" value="100"></label>
+      <button id="applyOptim">Aplicar Otimização</button>
+      <button id="saveEditedPhotoBtn">Salvar Edição</button>
     </div>
 
-    <!-- Galeria -->
-    <div id="galleryContainer" style="display:none;">
-        <h3>Galeria</h3>
-        <div id="galleryItems"></div>
-        <button id="backToMainBtn">Voltar</button>
-    </div>
+    <button id="gridToggleBtn">Grade: Off</button>
+  </div>
 
-    <script>
-        const video = document.getElementById('video');
-        const photoCanvas = document.getElementById('photoCanvas');
-        const ctx = photoCanvas.getContext('2d');
-        const controls = document.getElementById('controls');
-        const photoContainer = document.getElementById('photoContainer');
-        const optControls = document.getElementById('optControls');
-        const galleryContainer = document.getElementById('galleryContainer');
-        const galleryItems = document.getElementById('galleryItems');
-        const timerDisplay = document.getElementById('timerDisplay');
-        const pauseBtn = document.getElementById('pauseRecordingBtn');
-        const resumeBtn = document.getElementById('resumeRecordingBtn');
-        const stopBtn = document.getElementById('stopRecordingBtn');
-        const micToggleBtn = document.getElementById('micToggleBtn');
-        const zoomDisplay = document.getElementById('zoomDisplay');
-        const fpsDisplay = document.getElementById('fpsDisplay');
-        const gridOverlay = document.getElementById('gridOverlay');
-        const gridToggleBtn = document.getElementById('gridToggleBtn');
-        const zoomBar = document.getElementById('zoomBar');
-        const pipView = document.getElementById('pipView');
+  <!-- Galeria -->
+  <div id="galleryContainer" style="display:none;">
+    <h3>Galeria</h3>
+    <div id="galleryItems"></div>
+    <button id="backToMainBtn">Voltar</button>
+  </div>
 
-        const focusOverlay = document.getElementById('focusOverlay');
-        const focusOverlayPhoto = document.getElementById('focusOverlayPhoto');
-        const autoFocusBtnVideo = document.getElementById('autoFocusBtn');
-        const manualFocusBtnVideo = document.getElementById('manualFocusBtn');
-        const focusSliderVideo = document.getElementById('focusSlider');
-        const autoFocusBtnPhoto = document.getElementById('autoFocusBtnPhoto');
-        const manualFocusBtnPhoto = document.getElementById('manualFocusBtnPhoto');
-        const focusSliderPhoto = document.getElementById('focusSliderPhoto');
+  <script>
+    const video = document.getElementById('video');
+    const photoCanvas = document.getElementById('photoCanvas');
+    const ctx = photoCanvas.getContext('2d');
+    const controls = document.getElementById('controls');
+    const photoContainer = document.getElementById('photoContainer');
+    const optControls = document.getElementById('optControls');
+    const galleryContainer = document.getElementById('galleryContainer');
+    const galleryItems = document.getElementById('galleryItems');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const pauseBtn = document.getElementById('pauseRecordingBtn');
+    const resumeBtn = document.getElementById('resumeRecordingBtn');
+    const stopBtn = document.getElementById('stopRecordingBtn');
+    const micToggleBtn = document.getElementById('micToggleBtn');
+    const zoomDisplay = document.getElementById('zoomDisplay');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const gridOverlay = document.getElementById('gridOverlay');
+    const gridToggleBtn = document.getElementById('gridToggleBtn');
+    const zoomBar = document.getElementById('zoomBar');
+    const pipView = document.getElementById('pipView');
 
-        const videoContainer = document.getElementById('videoContainer');
-        const recordControls = document.getElementById('recordControls');
+    const focusOverlay = document.getElementById('focusOverlay');
+    const focusOverlayPhoto = document.getElementById('focusOverlayPhoto');
+    const autoFocusBtnVideo = document.getElementById('autoFocusBtn');
+    const manualFocusBtnVideo = document.getElementById('manualFocusBtn');
+    const focusSliderVideo = document.getElementById('focusSlider');
+    const autoFocusBtnPhoto = document.getElementById('autoFocusBtnPhoto');
+    const manualFocusBtnPhoto = document.getElementById('manualFocusBtnPhoto');
+    const focusSliderPhoto = document.getElementById('focusSliderPhoto');
 
-        let currentMode = null;
-        let stream = null;
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let recordStartTime = 0;
-        let recordTimerInterval = null;
-        let isPaused = false;
-        let includeAudio = false;
+    const videoContainer = document.getElementById('videoContainer');
+    const recordControls = document.getElementById('recordControls');
 
-        const photos = [];
-        const videos = [];
-        let editingPhotoIndex = null;
+    let currentMode = null;
+    let stream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordStartTime = 0;
+    let recordTimerInterval = null;
+    let isPaused = false;
+    let includeAudio = false;  // No modo foto, áudio fica desativado
 
-        let currentZoom = 1;
-        let maxOpticalZoom = 1;
-        let minOpticalZoom = 1;
+    const photos = [];
+    const videos = [];
+    let editingPhotoIndex = null;
 
-        let lastFrameTime = performance.now();
-        let frameCount = 0;
+    let currentZoom = 1;
+    let maxOpticalZoom = 1;
+    let minOpticalZoom = 1;
 
-        async function initCamera(constraints) {
-            if (stream) stream.getTracks().forEach(t => t.stop());
+    let lastFrameTime = performance.now();
+    let frameCount = 0;
+
+    /**
+     * initCamera com priorização de resoluções (método 1):
+     *   - Tentar 4K (4032×3024)
+     *   - Se falhar, tentar 1080p (1920×1080)
+     *   - Se falhar, tentar 720p (1280×720)
+     *   - Se falhar, fallback genérico ({ facingMode: 'environment' })
+     */
+    async function initCameraPhotoMode() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      let constraints;
+      // 1) Tentar 4K (se a câmera suportar)
+      try {
+        constraints = {
+          video: {
+            width: { exact: 4032 },
+            height: { exact: 3024 },
+            facingMode: 'environment',
+            focusMode: 'continuous'
+          },
+          audio: false
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (_) {
+        // 2) Tentar Full HD (1080p)
+        try {
+          constraints = {
+            video: {
+              width: { exact: 1920 },
+              height: { exact: 1080 },
+              facingMode: 'environment',
+              focusMode: 'continuous'
+            },
+            audio: false
+          };
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (_) {
+          // 3) Tentar HD (720p)
+          try {
+            constraints = {
+              video: {
+                width: { exact: 1280 },
+                height: { exact: 720 },
+                facingMode: 'environment',
+                focusMode: 'continuous'
+              },
+              audio: false
+            };
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+          } catch (e) {
+            // 4) Qualquer resolução padrão
             try {
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-                const [track] = stream.getVideoTracks();
-                const cap = track.getCapabilities();
-                maxOpticalZoom = cap.zoom ? (cap.zoom.max || 1) : 1;
-                minOpticalZoom = cap.zoom ? (cap.zoom.min || 1) : 1;
-                currentZoom = 1;
-                updateZoomDisplay();
-                video.style.transform = `scale(1)`;
-                videoContainer.style.display = 'block';
-                controls.style.display = 'flex';
-                startFPSCounter();
-            } catch (e) {
-                const errName = e.name;
-                if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(errName)) {
-                    alert('Qualidade não suportado');
-                } else if (errName === 'NotAllowedError') {
-                    alert('Permissão para câmera negada');
-                } else {
-                    alert('Erro ao acessar câmera: ' + e.message);
-                }
-                console.error('Erro ao acessar câmera:', e);
+              constraints = {
+                video: { facingMode: 'environment', focusMode: 'continuous' },
+                audio: false
+              };
+              stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (err) {
+              const errName = err.name;
+              if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(errName)) {
+                alert('Qualidade não suportado');
+              } else if (errName === 'NotAllowedError') {
+                alert('Permissão para câmera negada');
+              } else {
+                alert('Erro ao acessar câmera: ' + err.message);
+              }
+              console.error('Erro ao acessar câmera:', err);
+              return;
             }
+          }
         }
+      }
 
-        function formatTime(seconds) {
-            const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-            const s = String(seconds % 60).padStart(2, '0');
-            return `${m}:${s}`;
+      // Configura o stream no <video> e detecta capacidades de zoom/foco
+      video.srcObject = stream;
+      const [track] = stream.getVideoTracks();
+      const cap = track.getCapabilities();
+      maxOpticalZoom = cap.zoom ? (cap.zoom.max || 1) : 1;
+      minOpticalZoom = cap.zoom ? (cap.zoom.min || 1) : 1;
+      currentZoom = 1;
+      updateZoomDisplay();
+      video.style.transform = `scale(1)`;
+      videoContainer.style.display = 'block';
+      controls.style.display = 'flex';
+      startFPSCounter();
+    }
+
+    // Modo Vídeo: o initCamera já existia, mantemos a lógica para
+    // resolução manual (garantimos foco contínuo por padrão).
+    async function initCameraVideoMode(mapping) {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(mapping);
+        video.srcObject = stream;
+        const [track] = stream.getVideoTracks();
+        const cap = track.getCapabilities();
+        maxOpticalZoom = cap.zoom ? (cap.zoom.max || 1) : 1;
+        minOpticalZoom = cap.zoom ? (cap.zoom.min || 1) : 1;
+        currentZoom = 1;
+        updateZoomDisplay();
+        video.style.transform = `scale(1)`;
+        videoContainer.style.display = 'block';
+        controls.style.display = 'flex';
+        startFPSCounter();
+      } catch (e) {
+        const errName = e.name;
+        if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(errName)) {
+          alert('Qualidade não suportado');
+        } else if (errName === 'NotAllowedError') {
+          alert('Permissão para câmera negada');
+        } else {
+          alert('Erro ao acessar câmera: ' + e.message);
         }
+        console.error('Erro ao acessar câmera:', e);
+      }
+    }
 
-        function startTimer() {
-            recordStartTime = 0;
-            timerDisplay.textContent = '00:00';
-            recordTimerInterval = setInterval(() => {
-                if (!isPaused) {
-                    recordStartTime++;
-                    timerDisplay.textContent = formatTime(recordStartTime);
-                }
-            }, 1000);
-            pauseBtn.style.display = 'inline-block';
-            stopBtn.style.display = 'inline-block';
+    function formatTime(seconds) {
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function startTimer() {
+      recordStartTime = 0;
+      timerDisplay.textContent = '00:00';
+      recordTimerInterval = setInterval(() => {
+        if (!isPaused) {
+          recordStartTime++;
+          timerDisplay.textContent = formatTime(recordStartTime);
         }
+      }, 1000);
+      pauseBtn.style.display = 'inline-block';
+      stopBtn.style.display = 'inline-block';
+    }
 
-        function stopTimer() {
-            clearInterval(recordTimerInterval);
-            timerDisplay.textContent = '00:00';
-            pauseBtn.style.display = 'none';
-            resumeBtn.style.display = 'none';
-            stopBtn.style.display = 'none';
-            isPaused = false;
+    function stopTimer() {
+      clearInterval(recordTimerInterval);
+      timerDisplay.textContent = '00:00';
+      pauseBtn.style.display = 'none';
+      resumeBtn.style.display = 'none';
+      stopBtn.style.display = 'none';
+      isPaused = false;
+    }
+
+    function clearControls() {
+      controls.innerHTML = '';
+      photoContainer.style.display = 'none';
+      optControls.style.display = 'none';
+      recordControls.style.display = 'none';
+      videoContainer.style.display = 'none';
+    }
+
+    // ------- Modo Foto -------
+    function setupPhotoMode() {
+      currentMode = 'photo';
+      clearControls();
+      hideAllSections();
+      videoContainer.style.display = 'block';
+      controls.style.display = 'flex';
+      photoContainer.style.display = 'block';
+
+      // Zoom: tick buttons e slider (0.5x se suportado)
+      const zValues = [0.5, 1, 2, 5, 10, 25, 50, 75, 100];
+      zValues.forEach(z => {
+        const btn = document.createElement('button');
+        btn.textContent = z + 'x';
+        btn.onclick = () => setZoom(z);
+        controls.appendChild(btn);
+      });
+      zoomBar.min = 0.5; zoomBar.max = 100; zoomBar.step = 0.1; zoomBar.value = 1;
+      zoomBar.oninput = () => setZoom(zoomBar.value);
+      controls.appendChild(zoomBar);
+
+      const captureBtn = document.createElement('button');
+      captureBtn.textContent = 'Capturar Foto';
+      captureBtn.onclick = capturePhoto;
+      controls.appendChild(captureBtn);
+
+      // Foco Foto
+      autoFocusBtnPhoto.onclick = () => setFocusMode('continuous');
+      manualFocusBtnPhoto.onclick = () => {
+        focusSliderPhoto.style.display = 'inline-block';
+        focusOverlayPhoto.style.display = 'block';
+      };
+      focusSliderPhoto.oninput = () => setManualFocus(focusSliderPhoto.value);
+      focusSliderPhoto.style.display = 'none';
+
+      optControls.style.display = 'none';
+      photoContainer.appendChild(optControls);
+      photoContainer.querySelector('#applyOptim').onclick = applyOptimizations;
+      photoContainer.querySelector('#saveEditedPhotoBtn').onclick = saveEditedPhoto;
+
+      gridToggleBtn.onclick = toggleGrid;
+    }
+
+    async function setZoom(value) {
+      const zoomRequested = parseFloat(value);
+      const [track] = stream.getVideoTracks();
+      const cap = track.getCapabilities();
+      if (cap.zoom) {
+        try {
+          // Tenta zoom óptico diretamente em qualquer valor (se estiver entre min e max)
+          await track.applyConstraints({ advanced: [{ zoom: zoomRequested }] });
+          video.style.transform = 'scale(1)';
+        } catch {
+          // Se não suportar (ou valor abaixo/ acima do range), calculamos fallback digital
+          const minZ = cap.zoom.min;
+          const maxZ = cap.zoom.max;
+          if (zoomRequested < minZ) {
+            await track.applyConstraints({ advanced: [{ zoom: minZ }] });
+            const digital = zoomRequested / minZ;
+            video.style.transform = `scale(${digital})`;
+          } else if (zoomRequested > maxZ) {
+            await track.applyConstraints({ advanced: [{ zoom: maxZ }] });
+            const digital = zoomRequested / maxZ;
+            video.style.transform = `scale(${digital})`;
+          } else {
+            video.style.transform = 'scale(1)';
+          }
         }
+      } else {
+        // Sem suporte óptico, apenas zoom digital via scale
+        video.style.transform = `scale(${zoomRequested})`;
+      }
+      currentZoom = zoomRequested;
+      zoomBar.value = zoomRequested;
+      updateZoomDisplay();
+    }
 
-        function clearControls() {
-            controls.innerHTML = '';
-            photoContainer.style.display = 'none';
-            optControls.style.display = 'none';
-            recordControls.style.display = 'none';
-            videoContainer.style.display = 'none';
-        }
+    function updateZoomDisplay() {
+      zoomDisplay.textContent = `${currentZoom}x`;
+    }
 
-        // ------- Modo Foto -------
-        function setupPhotoMode() {
-            currentMode = 'photo';
-            clearControls();
-            hideAllSections();
-            videoContainer.style.display = 'block';
-            controls.style.display = 'flex';
-            photoContainer.style.display = 'block';
+    function capturePhoto() {
+      photoCanvas.width = video.videoWidth;
+      photoCanvas.height = video.videoHeight;
 
-            // Zoom: tick buttons e slider (0.5x se suportado)
-            const zValues = [0.5, 1, 2, 5, 10, 25, 50, 75, 100];
-            zValues.forEach(z => {
-                const btn = document.createElement('button');
-                btn.textContent = z + 'x';
-                btn.onclick = () => setZoom(z);
-                controls.appendChild(btn);
-            });
-            zoomBar.min = 0.5; zoomBar.max = 100; zoomBar.step = 0.1; zoomBar.value = 1;
-            zoomBar.oninput = () => setZoom(zoomBar.value);
-            controls.appendChild(zoomBar);
+      // Configurar suavização de alta qualidade
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(video, 0, 0);
 
-            const captureBtn = document.createElement('button');
-            captureBtn.textContent = 'Capturar Foto';
-            captureBtn.onclick = capturePhoto;
-            controls.appendChild(captureBtn);
+      // Aplica filtro de nitidez (unsharp mask) ao final da captura
+      sharpenCanvas(photoCanvas);
 
-            // Foco Foto
-            autoFocusBtnPhoto.onclick = () => setFocusMode('continuous', track => track);
-            manualFocusBtnPhoto.onclick = () => { focusSliderPhoto.style.display = 'inline-block'; focusOverlayPhoto.style.display = 'block'; };
-            focusSliderPhoto.oninput = () => setManualFocus(focusSliderPhoto.value, track => track);
-            focusSliderPhoto.style.display = 'none';
+      optControls.style.display = 'flex';
+      editingPhotoIndex = null;
+    }
 
-            optControls.style.display = 'none';
-            photoContainer.appendChild(optControls);
-            photoContainer.querySelector('#applyOptim').onclick = applyOptimizations;
-            photoContainer.querySelector('#saveEditedPhotoBtn').onclick = saveEditedPhoto;
-
-            gridToggleBtn.onclick = toggleGrid;
-        }
-
-        async function setZoom(value) {
-            const zoomRequested = parseFloat(value);
-            const [track] = stream.getVideoTracks();
-            const cap = track.getCapabilities();
-            if (cap.zoom) {
-                try {
-                    await track.applyConstraints({ advanced: [{ zoom: zoomRequested }] });
-                    video.style.transform = `scale(1)`;
-                } catch {
-                    const minZ = cap.zoom.min;
-                    const maxZ = cap.zoom.max;
-                    if (zoomRequested < minZ) {
-                        await track.applyConstraints({ advanced: [{ zoom: minZ }] });
-                        const digital = zoomRequested / minZ;
-                        video.style.transform = `scale(${digital})`;
-                    } else if (zoomRequested > maxZ) {
-                        await track.applyConstraints({ advanced: [{ zoom: maxZ }] });
-                        const digital = zoomRequested / maxZ;
-                        video.style.transform = `scale(${digital})`;
-                    } else {
-                        video.style.transform = `scale(1)`;
-                    }
-                }
-            } else {
-                video.style.transform = `scale(${zoomRequested})`;
+    function applyOptimizations() {
+      const imgData = ctx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
+      const data = imgData.data;
+      const sat = document.getElementById('saturation').value / 100;
+      const bri = document.getElementById('brightness').value / 100;
+      const con = document.getElementById('contrast').value / 100;
+      const sharp = document.getElementById('sharpness').value / 100;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = data[i] * sat * con + 255 * (bri - 1);
+        data[i + 1] = data[i + 1] * sat * con + 255 * (bri - 1);
+        data[i + 2] = data[i + 2] * sat * con + 255 * (bri - 1);
+      }
+      ctx.putImageData(imgData, 0, 0);
+      if (sharp !== 1) {
+        const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+        const divisor = sharp;
+        const tempCanvas = document.createElement('canvas');
+        const tCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = photoCanvas.width;
+        tempCanvas.height = photoCanvas.height;
+        tCtx.drawImage(photoCanvas, 0, 0);
+        const src = tCtx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
+        const dst = ctx.createImageData(photoCanvas.width, photoCanvas.height);
+        for (let y = 1; y < photoCanvas.height - 1; y++) {
+          for (let x = 1; x < photoCanvas.width - 1; x++) {
+            let sumR = 0, sumG = 0, sumB = 0;
+            for (let ky = -1; ky <= 1; ky++) {
+              for (let kx = -1; kx <= 1; kx++) {
+                const weight = kernel[(ky + 1) * 3 + (kx + 1)];
+                const srcIdx = ((y + ky) * photoCanvas.width + (x + kx)) * 4;
+                sumR += src.data[srcIdx] * weight;
+                sumG += src.data[srcIdx + 1] * weight;
+                sumB += src.data[srcIdx + 2] * weight;
+              }
             }
-            currentZoom = zoomRequested;
-            zoomBar.value = zoomRequested;
-            updateZoomDisplay();
+            const idx = (y * photoCanvas.width + x) * 4;
+            dst.data[idx] = Math.min(Math.max(sumR / divisor, 0), 255);
+            dst.data[idx + 1] = Math.min(Math.max(sumG / divisor, 0), 255);
+            dst.data[idx + 2] = Math.min(Math.max(sumB / divisor, 0), 255);
+            dst.data[idx + 3] = src.data[idx + 3];
+          }
         }
+        ctx.putImageData(dst, 0, 0);
+      }
+    }
 
-        function updateZoomDisplay() {
-            zoomDisplay.textContent = `${currentZoom}x`;
-        }
+    function saveEditedPhoto() {
+      const dataUrl = photoCanvas.toDataURL('image/png');
+      if (editingPhotoIndex !== null) {
+        photos[editingPhotoIndex].dataUrl = dataUrl;
+      } else {
+        photos.push({ dataUrl });
+      }
+      optControls.style.display = 'none';
+    }
 
-        function capturePhoto() {
-            photoCanvas.width = video.videoWidth;
-            photoCanvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-            optControls.style.display = 'flex';
-            editingPhotoIndex = null;
-        }
+    function toggleGrid() {
+      const isOn = gridOverlay.style.display === 'block';
+      gridOverlay.style.display = isOn ? 'none' : 'block';
+      gridToggleBtn.style.background = isOn ? '#333' : '#0066cc';
+      gridToggleBtn.textContent = `Grade: ${isOn ? 'Off' : 'On'}`;
+    }
 
-        function applyOptimizations() {
-            const imgData = ctx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
-            const data = imgData.data;
-            const sat = document.getElementById('saturation').value / 100;
-            const bri = document.getElementById('brightness').value / 100;
-            const con = document.getElementById('contrast').value / 100;
-            const sharp = document.getElementById('sharpness').value / 100;
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = data[i] * sat * con + 255 * (bri - 1);
-                data[i + 1] = data[i + 1] * sat * con + 255 * (bri - 1);
-                data[i + 2] = data[i + 2] * sat * con + 255 * (bri - 1);
-            }
-            ctx.putImageData(imgData, 0, 0);
-            if (sharp !== 1) {
-                const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
-                const divisor = sharp;
-                const tempCanvas = document.createElement('canvas');
-                const tCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = photoCanvas.width;
-                tempCanvas.height = photoCanvas.height;
-                tCtx.drawImage(photoCanvas, 0, 0);
-                const src = tCtx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
-                const dst = ctx.createImageData(photoCanvas.width, photoCanvas.height);
-                for (let y = 1; y < photoCanvas.height - 1; y++) {
-                    for (let x = 1; x < photoCanvas.width - 1; x++) {
-                        let sumR = 0, sumG = 0, sumB = 0;
-                        for (let ky = -1; ky <= 1; ky++) {
-                            for (let kx = -1; kx <= 1; kx++) {
-                                const weight = kernel[(ky + 1) * 3 + (kx + 1)];
-                                const srcIdx = ((y + ky) * photoCanvas.width + (x + kx)) * 4;
-                                sumR += src.data[srcIdx] * weight;
-                                sumG += src.data[srcIdx + 1] * weight;
-                                sumB += src.data[srcIdx + 2] * weight;
-                            }
-                        }
-                        const idx = (y * photoCanvas.width + x) * 4;
-                        dst.data[idx] = sumR / divisor;
-                        dst.data[idx + 1] = sumG / divisor;
-                        dst.data[idx + 2] = sumB / divisor;
-                        dst.data[idx + 3] = 255;
-                    }
-                }
-                ctx.putImageData(dst, 0, 0);
-            }
-        }
-
-        function saveEditedPhoto() {
-            const dataUrl = photoCanvas.toDataURL('image/png');
-            if (editingPhotoIndex !== null) {
-                photos[editingPhotoIndex].dataUrl = dataUrl;
-            } else {
-                photos.push({ dataUrl });
-            }
-            optControls.style.display = 'none';
-        }
-
-        function toggleGrid() {
-            const isOn = gridOverlay.style.display === 'block';
-            gridOverlay.style.display = isOn ? 'none' : 'block';
-            gridToggleBtn.style.background = isOn ? '#333' : '#0066cc';
-            gridToggleBtn.textContent = `Grade: ${isOn ? 'Off' : 'On'}`;
-        }
-
-        async function setFocusMode(mode, getTrack) {
-            const track = stream.getVideoTracks()[0];
-            const cap = track.getCapabilities();
-            if (cap.focusMode) {
-                try {
-                    await track.applyConstraints({ advanced: [{ focusMode: mode }] });
-                    if (mode === 'continuous') {
-                        focusOverlay.style.display = 'none';
-                        focusOverlayPhoto.style.display = 'none';
-                        focusSliderVideo.style.display = 'none';
-                        focusSliderPhoto.style.display = 'none';
-                    }
-                } catch (e) { console.warn('Foco não suportado:', e); }
-            }
-        }
-
-        async function setManualFocus(value) {
-            const track = stream.getVideoTracks()[0];
-            const cap = track.getCapabilities();
-            if (cap.focusDistance) {
-                try {
-                    await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: parseFloat(value) }] });
-                    if (currentMode === 'video') {
-                        focusOverlay.style.display = 'block';
-                    } else if (currentMode === 'photo') {
-                        focusOverlayPhoto.style.display = 'block';
-                    }
-                } catch (e) { console.warn('Foco manual não suportado:', e); }
-            }
-        }
-
-        // ------- Modo Vídeo -------
-        function setupVideoMode() {
-            currentMode = 'video';
-            clearControls();
-            hideAllSections();
-            videoContainer.style.display = 'block';
-            controls.style.display = 'flex';
-            recordControls.style.display = 'flex';
-            recordControls.appendChild(timerDisplay);
-            recordControls.appendChild(micToggleBtn);
-
-            const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
-            const sel = document.createElement('select');
-            resolutions.forEach(res => {
-                const option = document.createElement('option');
-                option.value = res;
-                option.textContent = res;
-                sel.appendChild(option);
-            });
-            sel.onchange = () => changeVideoResolution(sel.value);
-            controls.appendChild(sel);
-
-            const btn1 = document.createElement('button'); btn1.textContent = '1x'; btn1.onclick = () => setZoom(1);
-            const btn2 = document.createElement('button'); btn2.textContent = '2x'; btn2.onclick = () => setZoom(2);
-            controls.appendChild(btn1);
-            controls.appendChild(btn2);
-
-            autoFocusBtnVideo.onclick = () => setFocusMode('continuous');
-            manualFocusBtnVideo.onclick = () => { focusSliderVideo.style.display = 'inline-block'; focusOverlay.style.display = 'block'; };
-            focusSliderVideo.oninput = () => setManualFocus(focusSliderVideo.value);
-            focusSliderVideo.style.display = 'none';
-
-            const recordBtn = document.createElement('button');
-            recordBtn.textContent = 'Iniciar Gravação';
-            recordBtn.onclick = startRecording;
-            controls.appendChild(recordBtn);
-
-            pauseBtn.onclick = pauseRecording;
-            resumeBtn.onclick = resumeRecording;
-            stopBtn.onclick = stopRecording;
-            micToggleBtn.onclick = toggleMic;
-        }
-
-        async function changeVideoResolution(label) {
-            const mapping = {
-                "480p": { video: { width: { exact: 640 }, height: { exact: 480 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
-                "720p": { video: { width: { exact: 1280 }, height: { exact: 720 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
-                "1080p": { video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
-                "1440p": { video: { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
-                "2160p": { video: { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true }
-            };
-            await initCamera(mapping[label]);
-            setupVideoMode();
-        }
-
-        function startRecording() {
-            if (!stream) return;
-            recordedChunks = [];
-            try {
-                mediaRecorder = new MediaRecorder(stream);
-            } catch (e) {
-                alert('Seu navegador não suporta MediaRecorder.');
-                return;
-            }
-            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                videos.push({ blob });
-                stopTimer();
-            };
-            mediaRecorder.start();
-            startTimer();
-        }
-
-        function pauseRecording() {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.pause();
-                isPaused = true;
-                pauseBtn.style.display = 'none';
-                resumeBtn.style.display = 'inline-block';
-            }
-        }
-
-        function resumeRecording() {
-            if (mediaRecorder && mediaRecorder.state === 'paused') {
-                mediaRecorder.resume();
-                isPaused = false;
-                resumeBtn.style.display = 'none';
-                pauseBtn.style.display = 'inline-block';
-            }
-        }
-
-        function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-        }
-
-        function toggleMic() {
-            includeAudio = !includeAudio;
-            micToggleBtn.style.background = includeAudio ? '#0066cc' : '#333';
-            micToggleBtn.textContent = `Mic: ${includeAudio ? 'On' : 'Off'}`;
-            if (stream) {
-                stream.getAudioTracks().forEach(t => t.enabled = includeAudio);
-            }
-        }
-
-        function startFPSCounter() {
-            function update() {
-                const now = performance.now();
-                frameCount++;
-                if (now - lastFrameTime >= 1000) {
-                    fpsDisplay.textContent = `FPS: ${frameCount}`;
-                    frameCount = 0;
-                    lastFrameTime = now;
-                }
-                drawPIP();
-                requestAnimationFrame(update);
-            }
-            requestAnimationFrame(update);
-        }
-
-        function updatePIP() {
-            pipView.width = 100;
-            pipView.height = 178;
-            const ctxPip = pipView.getContext('2d');
-            ctxPip.clearRect(0, 0, pipView.width, pipView.height);
-            ctxPip.drawImage(video, 0, 0, pipView.width, pipView.height);
-            const track = stream.getVideoTracks()[0];
-            const cap = track.getCapabilities();
-            const minZ = cap.zoom ? cap.zoom.min : 1;
-            const maxZ = cap.zoom ? cap.zoom.max : 1;
-            let digital = 1;
-            if (currentZoom < minZ) digital = minZ / currentZoom;
-            else if (currentZoom > maxZ) digital = currentZoom / maxZ;
-            const rectW = pipView.width / digital;
-            const rectH = pipView.height / digital;
-            ctxPip.strokeStyle = 'yellow';
-            ctxPip.lineWidth = 2;
-            ctxPip.strokeRect((pipView.width - rectW) / 2, (pipView.height - rectH) / 2, rectW, rectH);
-        }
-
-        function drawPIP() {
-            if (currentMode && (currentMode === 'photo' || currentMode === 'video')) {
-                updatePIP();
-            }
-        }
-
-        function showGallery() {
-            hideAllSections();
-            galleryContainer.style.display = 'block';
-            renderGallery();
-        }
-
-        function renderGallery() {
-            galleryItems.innerHTML = '';
-            photos.forEach((photo, index) => {
-                const div = document.createElement('div');
-                div.className = 'gallery-item';
-                const img = document.createElement('img');
-                img.src = photo.dataUrl;
-                div.appendChild(img);
-                const dlBtn = document.createElement('a');
-                dlBtn.textContent = 'Download';
-                dlBtn.href = photo.dataUrl;
-                dlBtn.download = `foto_${index + 1}.png`;
-                div.appendChild(dlBtn);
-                const editBtn = document.createElement('button');
-                editBtn.textContent = 'Editar';
-                editBtn.onclick = () => editPhoto(index);
-                div.appendChild(editBtn);
-                galleryItems.appendChild(div);
-            });
-            videos.forEach((videoObj, index) => {
-                const div = document.createElement('div');
-                div.className = 'gallery-item';
-                const vid = document.createElement('video');
-                const url = URL.createObjectURL(videoObj.blob);
-                vid.src = url;
-                vid.controls = true;
-                div.appendChild(vid);
-                const dlBtn = document.createElement('a');
-                dlBtn.textContent = 'Download';
-                dlBtn.href = url;
-                dlBtn.download = `video_${index + 1}.webm`;
-                div.appendChild(dlBtn);
-                galleryItems.appendChild(div);
-            });
-        }
-
-        function editPhoto(index) {
-            const photo = photos[index];
-            hideAllSections();
-            photoContainer.style.display = 'block';
-            optControls.style.display = 'flex';
-            const img = new Image();
-            img.onload = () => {
-                photoCanvas.width = img.width;
-                photoCanvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-            };
-            img.src = photo.dataUrl;
-            editingPhotoIndex = index;
-        }
-
-        function hideAllSections() {
-            videoContainer.style.display = 'none';
-            controls.style.display = 'none';
-            recordControls.style.display = 'none';
-            photoContainer.style.display = 'none';
-            optControls.style.display = 'none';
-            galleryContainer.style.display = 'none';
+    async function setFocusMode(mode) {
+      const track = stream.getVideoTracks()[0];
+      const cap = track.getCapabilities();
+      if (cap.focusMode) {
+        try {
+          await track.applyConstraints({ advanced: [{ focusMode: mode }] });
+          if (mode === 'continuous') {
             focusOverlay.style.display = 'none';
             focusOverlayPhoto.style.display = 'none';
             focusSliderVideo.style.display = 'none';
             focusSliderPhoto.style.display = 'none';
+          }
+        } catch (e) { console.warn('Foco não suportado:', e); }
+      }
+    }
+
+    async function setManualFocus(value) {
+      const track = stream.getVideoTracks()[0];
+      const cap = track.getCapabilities();
+      if (cap.focusDistance) {
+        try {
+          await track.applyConstraints({ advanced: [
+            { focusMode: 'manual', focusDistance: parseFloat(value) }
+          ] });
+          if (currentMode === 'video') {
+            focusOverlay.style.display = 'block';
+          } else if (currentMode === 'photo') {
+            focusOverlayPhoto.style.display = 'block';
+          }
+        } catch (e) { console.warn('Foco manual não suportado:', e); }
+      }
+    }
+
+    // Aplica Sharpen (Unsharp Mask) a um canvas
+    function sharpenCanvas(canvas) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const srcData = ctx.getImageData(0, 0, w, h);
+      const dstData = ctx.createImageData(w, h);
+
+      const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+      const divisor = 1;
+      const half = 1;
+
+      for (let y = half; y < h - half; y++) {
+        for (let x = half; x < w - half; x++) {
+          let sumR = 0, sumG = 0, sumB = 0;
+          for (let ky = -half; ky <= half; ky++) {
+            for (let kx = -half; kx <= half; kx++) {
+              const weight = kernel[(ky + half) * 3 + (kx + half)];
+              const idx = ((y + ky) * w + (x + kx)) * 4;
+              sumR += srcData.data[idx] * weight;
+              sumG += srcData.data[idx + 1] * weight;
+              sumB += srcData.data[idx + 2] * weight;
+            }
+          }
+          const i = (y * w + x) * 4;
+          dstData.data[i] = Math.min(Math.max(sumR / divisor, 0), 255);
+          dstData.data[i + 1] = Math.min(Math.max(sumG / divisor, 0), 255);
+          dstData.data[i + 2] = Math.min(Math.max(sumB / divisor, 0), 255);
+          dstData.data[i + 3] = srcData.data[i + 3];
         }
+      }
+      ctx.putImageData(dstData, 0, 0);
+    }
 
-        document.getElementById('photoModeBtn').onclick = async () => {
-            hideAllSections();
-            await initCamera({ video: { facingMode: 'environment', focusMode: 'continuous' }, audio: false });
-            setupPhotoMode();
-        };
-        document.getElementById('videoModeBtn').onclick = async () => {
-            hideAllSections();
-            await initCamera({ video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true });
-            setupVideoMode();
-        };
-        document.getElementById('galleryBtn').onclick = () => showGallery();
-        document.getElementById('backToMainBtn').onclick = () => hideAllSections();
+    // ------- Modo Vídeo -------
+    function setupVideoMode() {
+      currentMode = 'video';
+      clearControls();
+      hideAllSections();
+      videoContainer.style.display = 'block';
+      controls.style.display = 'flex';
+      recordControls.style.display = 'flex';
+      recordControls.appendChild(timerDisplay);
+      recordControls.appendChild(micToggleBtn);
 
-        window.onload = () => {
-            hideAllSections();
-        };
-    </script>
+      // Resolução manual
+      const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
+      const sel = document.createElement('select');
+      resolutions.forEach(res => {
+        const option = document.createElement('option');
+        option.value = res;
+        option.textContent = res;
+        sel.appendChild(option);
+      });
+      sel.onchange = () => changeVideoResolution(sel.value);
+      controls.appendChild(sel);
+
+      // Zoom fixo 1x e 2x
+      const btn1 = document.createElement('button'); btn1.textContent = '1x'; btn1.onclick = () => setZoom(1);
+      const btn2 = document.createElement('button'); btn2.textContent = '2x'; btn2.onclick = () => setZoom(2);
+      controls.appendChild(btn1);
+      controls.appendChild(btn2);
+
+      // Foco Vídeo
+      autoFocusBtnVideo.onclick = () => setFocusMode('continuous');
+      manualFocusBtnVideo.onclick = () => {
+        focusSliderVideo.style.display = 'inline-block';
+        focusOverlay.style.display = 'block';
+      };
+      focusSliderVideo.oninput = () => setManualFocus(focusSliderVideo.value);
+      focusSliderVideo.style.display = 'none';
+
+      const recordBtn = document.createElement('button');
+      recordBtn.textContent = 'Iniciar Gravação';
+      recordBtn.onclick = startRecording;
+      controls.appendChild(recordBtn);
+
+      pauseBtn.onclick = pauseRecording;
+      resumeBtn.onclick = resumeRecording;
+      stopBtn.onclick = stopRecording;
+      micToggleBtn.onclick = toggleMic;
+    }
+
+    async function changeVideoResolution(label) {
+      const mapping = {
+        "480p": { video: { width: { exact: 640 }, height: { exact: 480 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+        "720p": { video: { width: { exact: 1280 }, height: { exact: 720 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+        "1080p": { video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+        "1440p": { video: { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+        "2160p": { video: { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true }
+      };
+      await initCameraVideoMode(mapping[label]);
+      setupVideoMode();
+    }
+
+    function startRecording() {
+      if (!stream) return;
+      recordedChunks = [];
+      try {
+        mediaRecorder = new MediaRecorder(stream);
+      } catch (e) {
+        alert('Seu navegador não suporta MediaRecorder.');
+        return;
+      }
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        videos.push({ blob });
+        stopTimer();
+      };
+      mediaRecorder.start();
+      startTimer();
+    }
+
+    function pauseRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.pause();
+        isPaused = true;
+        pauseBtn.style.display = 'none';
+        resumeBtn.style.display = 'inline-block';
+      }
+    }
+
+    function resumeRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'paused') {
+        mediaRecorder.resume();
+        isPaused = false;
+        resumeBtn.style.display = 'none';
+        pauseBtn.style.display = 'inline-block';
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    }
+
+    function toggleMic() {
+      includeAudio = !includeAudio;
+      micToggleBtn.style.background = includeAudio ? '#0066cc' : '#333';
+      micToggleBtn.textContent = `Mic: ${includeAudio ? 'On' : 'Off'}`;
+      if (stream) {
+        stream.getAudioTracks().forEach(t => t.enabled = includeAudio);
+      }
+    }
+
+    function startFPSCounter() {
+      function update() {
+        const now = performance.now();
+        frameCount++;
+        if (now - lastFrameTime >= 1000) {
+          fpsDisplay.textContent = `FPS: ${frameCount}`;
+          frameCount = 0;
+          lastFrameTime = now;
+        }
+        drawPIP();
+        requestAnimationFrame(update);
+      }
+      requestAnimationFrame(update);
+    }
+
+    function updatePIP() {
+      pipView.width = 100;
+      pipView.height = 178;
+      const ctxPip = pipView.getContext('2d');
+      ctxPip.clearRect(0, 0, pipView.width, pipView.height);
+      ctxPip.drawImage(video, 0, 0, pipView.width, pipView.height);
+      const track = stream.getVideoTracks()[0];
+      const cap = track.getCapabilities();
+      const minZ = cap.zoom ? cap.zoom.min : 1;
+      const maxZ = cap.zoom ? cap.zoom.max : 1;
+      let digital = 1;
+      if (currentZoom < minZ) digital = minZ / currentZoom;
+      else if (currentZoom > maxZ) digital = currentZoom / maxZ;
+      const rectW = pipView.width / digital;
+      const rectH = pipView.height / digital;
+      ctxPip.strokeStyle = 'yellow';
+      ctxPip.lineWidth = 2;
+      ctxPip.strokeRect((pipView.width - rectW) / 2,
+                        (pipView.height - rectH) / 2,
+                        rectW, rectH);
+    }
+
+    function drawPIP() {
+      if (currentMode && (currentMode === 'photo' || currentMode === 'video')) {
+        updatePIP();
+      }
+    }
+
+    function showGallery() {
+      hideAllSections();
+      galleryContainer.style.display = 'block';
+      renderGallery();
+    }
+
+    function renderGallery() {
+      galleryItems.innerHTML = '';
+      photos.forEach((photo, index) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-item';
+        const img = document.createElement('img');
+        img.src = photo.dataUrl;
+        div.appendChild(img);
+        const dlBtn = document.createElement('a');
+        dlBtn.textContent = 'Download';
+        dlBtn.href = photo.dataUrl;
+        dlBtn.download = `foto_${index + 1}.png`;
+        div.appendChild(dlBtn);
+        const editBtn = document.createElement('button');
+        editBtn.textContent = 'Editar';
+        editBtn.onclick = () => editPhoto(index);
+        div.appendChild(editBtn);
+        galleryItems.appendChild(div);
+      });
+      videos.forEach((videoObj, index) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-item';
+        const vid = document.createElement('video');
+        const url = URL.createObjectURL(videoObj.blob);
+        vid.src = url;
+        vid.controls = true;
+        div.appendChild(vid);
+        const dlBtn = document.createElement('a');
+        dlBtn.textContent = 'Download';
+        dlBtn.href = url;
+        dlBtn.download = `video_${index + 1}.webm`;
+        div.appendChild(dlBtn);
+        galleryItems.appendChild(div);
+      });
+    }
+
+    function editPhoto(index) {
+      const photo = photos[index];
+      hideAllSections();
+      photoContainer.style.display = 'block';
+      optControls.style.display = 'flex';
+      const img = new Image();
+      img.onload = () => {
+        photoCanvas.width = img.width;
+        photoCanvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+      };
+      img.src = photo.dataUrl;
+      editingPhotoIndex = index;
+    }
+
+    function hideAllSections() {
+      videoContainer.style.display = 'none';
+      controls.style.display = 'none';
+      recordControls.style.display = 'none';
+      photoContainer.style.display = 'none';
+      optControls.style.display = 'none';
+      galleryContainer.style.display = 'none';
+      focusOverlay.style.display = 'none';
+      focusOverlayPhoto.style.display = 'none';
+      focusSliderVideo.style.display = 'none';
+      focusSliderPhoto.style.display = 'none';
+    }
+
+    document.getElementById('photoModeBtn').onclick = async () => {
+      hideAllSections();
+      await initCameraPhotoMode();
+      setupPhotoMode();
+    };
+    document.getElementById('videoModeBtn').onclick = async () => {
+      hideAllSections();
+      // Começa no modo 1080p por padrão
+      await initCameraVideoMode({
+        video: {
+          width: { exact: 1920 },
+          height: { exact: 1080 },
+          facingMode: 'environment',
+          focusMode: 'continuous'
+        },
+        audio: true
+      });
+      setupVideoMode();
+    };
+    document.getElementById('galleryBtn').onclick = () => showGallery();
+    document.getElementById('backToMainBtn').onclick = () => hideAllSections();
+
+    window.onload = () => {
+      hideAllSections();
+    };
+  </script>
 </body>
 </html>
