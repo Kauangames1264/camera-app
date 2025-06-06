@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App de Câmera Android</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #fff; display: flex; flex-direction: column; align-items: center; }
+        #videoContainer, #photoContainer, #controls { max-width: 600px; width: 100%; margin-top: 20px; }
+        video, canvas { width: 100%; border-radius: 8px; background: #000; }
+        #controls { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 10px; }
+        button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; }
+        button:hover, select:hover, input[type=range]:hover { background: #555; cursor: pointer; }
+        #optControls { display: flex; flex-direction: column; margin-top: 10px; }
+        #optControls label { margin: 5px 0; }
+        #recordingsList { margin-top: 10px; max-height: 150px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h2>App de Câmera Android</h2>
+    <div id="modeSelector">
+        <button id="photoModeBtn">Modo Foto</button>
+        <button id="videoModeBtn">Modo Vídeo</button>
+    </div>
+
+    <div id="videoContainer" style="display:none;">
+        <video id="video" autoplay playsinline></video>
+    </div>
+    <div id="controls" style="display:none;">
+        <!-- Controles padrão, substituídos de acordo com o modo -->
+    </div>
+
+    <div id="photoContainer" style="display:none;">
+        <canvas id="photoCanvas"></canvas>
+        <div id="optControls" style="display:none;">
+            <label>Saturação: <input type="range" id="saturation" min="0" max="200" value="100"></label>
+            <label>Brilho: <input type="range" id="brightness" min="0" max="200" value="100"></label>
+            <label>Contraste: <input type="range" id="contrast" min="0" max="200" value="100"></label>
+            <label>Nitidez: <input type="range" id="sharpness" min="0" max="200" value="100"></label>
+            <button id="applyOptim">Aplicar Otimização</button>
+        </div>
+    </div>
+
+    <div id="recordingsList"></div>
+
+    <script>
+        const video = document.getElementById('video');
+        const photoCanvas = document.getElementById('photoCanvas');
+        const ctx = photoCanvas.getContext('2d');
+        const controls = document.getElementById('controls');
+        const photoContainer = document.getElementById('photoContainer');
+        const optControls = document.getElementById('optControls');
+        const recordingsList = document.getElementById('recordingsList');
+        const videoContainer = document.getElementById('videoContainer');
+
+        let currentMode = null;
+        let stream = null;
+        let track = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+
+        async function initCamera(constraints) {
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+            }
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                track = stream.getVideoTracks()[0];
+                videoContainer.style.display = 'block';
+                controls.style.display = 'flex';
+            } catch (e) {
+                alert('Erro ao acessar câmera: ' + e.message);
+                console.error('Erro ao acessar câmera:', e);
+            }
+        }
+
+        function clearControls() {
+            controls.innerHTML = '';
+            photoContainer.style.display = 'none';
+            optControls.style.display = 'none';
+            recordingsList.innerHTML = '';
+        }
+
+        // ------- Modo Foto -------
+        function setupPhotoMode() {
+            currentMode = 'photo';
+            clearControls();
+            photoContainer.style.display = 'block';
+
+            // Botões de zoom fixo
+            [0.5, 1, 5].forEach(z => {
+                const btn = document.createElement('button');
+                btn.textContent = z + 'x';
+                btn.onclick = () => setZoom(z);
+                controls.appendChild(btn);
+            });
+            // Barra de zoom
+            const zoomSlider = document.createElement('input');
+            zoomSlider.type = 'range';
+            zoomSlider.min = 1;
+            zoomSlider.max = 100;
+            zoomSlider.value = 1;
+            zoomSlider.oninput = () => setZoom(zoomSlider.value);
+            controls.appendChild(zoomSlider);
+
+            // Botão otimizar imagem
+            const optBtn = document.createElement('button');
+            optBtn.textContent = 'Otimizar Imagem';
+            optBtn.onclick = () => { optControls.style.display = 'flex'; };
+            controls.appendChild(optBtn);
+
+            // Botão capturar
+            const captureBtn = document.createElement('button');
+            captureBtn.textContent = 'Capturar Foto';
+            captureBtn.onclick = capturePhoto;
+            controls.appendChild(captureBtn);
+
+            // Mostrar controles de otimização
+            const applyBtn = document.getElementById('applyOptim');
+            applyBtn.onclick = applyOptimizations;
+        }
+
+        function setZoom(value) {
+            if (!track) return;
+            const capabilities = track.getCapabilities();
+            if (capabilities.zoom) {
+                const clamped = Math.max(capabilities.zoom.min || 1, Math.min(value, capabilities.zoom.max || value));
+                const constraints = { advanced: [{ zoom: clamped }] };
+                track.applyConstraints(constraints).catch(e => console.warn('Zoom não suportado:', e));
+            } else {
+                video.style.transform = `scale(${value})`;
+            }
+        }
+
+        function capturePhoto() {
+            photoCanvas.width = video.videoWidth;
+            photoCanvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            optControls.style.display = 'none';
+        }
+
+        function applyOptimizations() {
+            const imgData = ctx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
+            const data = imgData.data;
+            const sat = document.getElementById('saturation').value / 100;
+            const bri = document.getElementById('brightness').value / 100;
+            const con = document.getElementById('contrast').value / 100;
+            const sharp = document.getElementById('sharpness').value / 100;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = data[i] * sat * con + 255 * (bri - 1);
+                data[i + 1] = data[i + 1] * sat * con + 255 * (bri - 1);
+                data[i + 2] = data[i + 2] * sat * con + 255 * (bri - 1);
+            }
+            ctx.putImageData(imgData, 0, 0);
+            if (sharp !== 1) {
+                const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+                const divisor = sharp;
+                const tempCanvas = document.createElement('canvas');
+                const tCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = photoCanvas.width;
+                tempCanvas.height = photoCanvas.height;
+                tCtx.drawImage(photoCanvas, 0, 0);
+                const src = tCtx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
+                const dst = ctx.createImageData(photoCanvas.width, photoCanvas.height);
+                for (let y = 1; y < photoCanvas.height - 1; y++) {
+                    for (let x = 1; x < photoCanvas.width - 1; x++) {
+                        let sumR = 0, sumG = 0, sumB = 0;
+                        for (let ky = -1; ky <= 1; ky++) {
+                            for (let kx = -1; kx <= 1; kx++) {
+                                const weight = kernel[(ky + 1) * 3 + (kx + 1)];
+                                const srcIdx = ((y + ky) * photoCanvas.width + (x + kx)) * 4;
+                                sumR += src.data[srcIdx] * weight;
+                                sumG += src.data[srcIdx + 1] * weight;
+                                sumB += src.data[srcIdx + 2] * weight;
+                            }
+                        }
+                        const idx = (y * photoCanvas.width + x) * 4;
+                        dst.data[idx] = sumR / divisor;
+                        dst.data[idx + 1] = sumG / divisor;
+                        dst.data[idx + 2] = sumB / divisor;
+                        dst.data[idx + 3] = 255;
+                    }
+                }
+                ctx.putImageData(dst, 0, 0);
+            }
+        }
+
+        // ------- Modo Vídeo -------
+        function setupVideoMode() {
+            currentMode = 'video';
+            clearControls();
+
+            const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
+            const sel = document.createElement('select');
+            resolutions.forEach(res => {
+                const option = document.createElement('option');
+                option.value = res;
+                option.textContent = res;
+                sel.appendChild(option);
+            });
+            sel.onchange = () => changeVideoResolution(sel.value);
+            controls.appendChild(sel);
+
+            const stabBtn = document.createElement('button');
+            stabBtn.textContent = 'Estabilização (on/off)';
+            stabBtn.onclick = () => alert('Estabilização toggle (a implementar)');
+            controls.appendChild(stabBtn);
+
+            const recordBtn = document.createElement('button');
+            recordBtn.textContent = 'Iniciar Gravação';
+            recordBtn.onclick = startRecording;
+            controls.appendChild(recordBtn);
+
+            const stopBtn = document.createElement('button');
+            stopBtn.textContent = 'Parar Gravação';
+            stopBtn.onclick = stopRecording;
+            controls.appendChild(stopBtn);
+        }
+
+        async function changeVideoResolution(label) {
+            const mapping = {
+                "480p": { width: { ideal: 640 }, height: { ideal: 480 } },
+                "720p": { width: { ideal: 1280 }, height: { ideal: 720 } },
+                "1080p": { width: { ideal: 1920 }, height: { ideal: 1080 } },
+                "1440p": { width: { ideal: 2560 }, height: { ideal: 1440 } },
+                "2160p": { width: { ideal: 3840 }, height: { ideal: 2160 } }
+            };
+            await initCamera({ video: mapping[label], audio: true });
+            setupVideoModeControls();
+        }
+
+        function setupVideoModeControls() {
+            // Recriar controles após mudar resolução
+        }
+
+        function startRecording() {
+            if (!stream) return;
+            recordedChunks = [];
+            try {
+                mediaRecorder = new MediaRecorder(stream);
+            } catch (e) {
+                alert('Seu navegador não suporta MediaRecorder.');
+                return;
+            }
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = saveRecording;
+            mediaRecorder.start();
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        function saveRecording() {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const videoElem = document.createElement('video');
+            videoElem.controls = true;
+            videoElem.src = url;
+            recordingsList.appendChild(videoElem);
+        }
+
+        // ------- Eventos de Botões -------
+        document.getElementById('photoModeBtn').onclick = async () => {
+            await initCamera({ video: { facingMode: 'environment' }, audio: false });
+            setupPhotoMode();
+        };
+        document.getElementById('videoModeBtn').onclick = async () => {
+            await initCamera({ video: { facingMode: 'environment' }, audio: true });
+            setupVideoMode();
+        };
+    </script>
+</body>
+</html>
