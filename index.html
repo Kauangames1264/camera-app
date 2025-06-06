@@ -11,22 +11,22 @@
         #controls { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 10px; }
         button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; }
         button:hover, select:hover, input[type=range]:hover { background: #555; cursor: pointer; }
+        input[type=range] { width: 100%; }
         #optControls { display: flex; flex-direction: column; margin-top: 10px; }
         #optControls label { margin: 5px 0; }
-        #timerDisplay { font-size: 1.2em; margin: 5px; }
+        #timerDisplay, #zoomDisplay, #fpsDisplay { font-size: 1em; margin: 5px; display: inline-block; }
+        #zoomBarContainer { width: 100%; margin: 10px 0; }
+        #zoomBar { width: 100%; }
+        #zoomTicks { display: flex; justify-content: space-between; font-size: 0.8em; margin-top: -8px; }
         #galleryItems { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
         .gallery-item { position: relative; }
         .gallery-item img, .gallery-item video { max-height: 200px; }
         .gallery-item button, .gallery-item a { position: absolute; top: 5px; right: 5px; padding: 5px; background: rgba(0,0,0,0.7); color: #fff; text-decoration: none; }
-        #zoomDisplay, #fpsDisplay { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); padding: 5px 8px; border-radius: 4px; font-size: 1em; }
         #gridOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
-        #gridOverlay::before, #gridOverlay::after { content: ''; position: absolute; width: 100%; height: 100%; }
-        /* Linhas horizontais e verticais para grade 3x3 */
         #gridOverlay::before { background: 
             linear-gradient(to right, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%),
             linear-gradient(to bottom, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%);
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
+            background-size: 100% 100%; background-repeat: no-repeat;
         }
         #pipView { position: absolute; top: 10px; right: 10px; width: 100px; height: 178px; border: 2px solid #fff; }
     </style>
@@ -42,10 +42,12 @@
     <!-- Contêiner de vídeo -->
     <div id="videoContainer" style="display:none;">
         <video id="video" autoplay playsinline></video>
-        <div id="zoomDisplay">1x</div>
-        <div id="fpsDisplay">FPS: --</div>
-        <div id="gridOverlay"></div>
         <canvas id="pipView"></canvas>
+        <div style="position:absolute; top:10px; left:10px; display:flex; gap:8px;">
+            <div id="zoomDisplay">1x</div>
+            <div id="fpsDisplay">FPS: --</div>
+        </div>
+        <div id="gridOverlay"></div>
     </div>
     <!-- Controles principais -->
     <div id="controls" style="display:none;"></div>
@@ -56,12 +58,18 @@
         <button id="pauseRecordingBtn" style="display:none;">Pausar</button>
         <button id="resumeRecordingBtn" style="display:none;">Retomar</button>
         <button id="stopRecordingBtn" style="display:none;">Encerrar</button>
-        <button id="micToggleBtn">Mic: On</button>
+        <button id="micToggleBtn" style="background:#0066cc;">Mic: On</button>
     </div>
 
     <!-- Contêiner foto/canvas e otimização -->
     <div id="photoContainer" style="display:none;">
         <canvas id="photoCanvas"></canvas>
+        <div id="zoomBarContainer">
+            <input type="range" id="zoomBar" min="1" max="100" value="1">
+            <div id="zoomTicks">
+                <span>1x</span><span>10x</span><span>25x</span><span>50x</span><span>75x</span><span>100x</span>
+            </div>
+        </div>
         <div id="optControls" style="display:none;">
             <label>Saturação: <input type="range" id="saturation" min="0" max="200" value="100"></label>
             <label>Brilho: <input type="range" id="brightness" min="0" max="200" value="100"></label>
@@ -98,6 +106,7 @@
         const fpsDisplay = document.getElementById('fpsDisplay');
         const gridOverlay = document.getElementById('gridOverlay');
         const gridToggleBtn = document.getElementById('gridToggleBtn');
+        const zoomBar = document.getElementById('zoomBar');
         const pipView = document.getElementById('pipView');
 
         const videoContainer = document.getElementById('videoContainer');
@@ -117,12 +126,14 @@
         const videos = [];
         let editingPhotoIndex = null;
 
-        // Aspectos de zoom e FPS
+        // Zoom/Otical vs Digital
         let currentZoom = 1;
+        let maxOpticalZoom = 1;
+
+        // FPS
         let lastFrameTime = performance.now();
         let frameCount = 0;
 
-        // Formata mm:ss
         function formatTime(seconds) {
             const m = String(Math.floor(seconds / 60)).padStart(2, '0');
             const s = String(seconds % 60).padStart(2, '0');
@@ -152,23 +163,25 @@
         }
 
         async function initCamera(constraints) {
-            if (stream) {
-                stream.getTracks().forEach(t => t.stop());
-            }
+            if (stream) stream.getTracks().forEach(t => t.stop());
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
-                if (video.srcObject) video.srcObject = null;
                 video.srcObject = stream;
+                // Detectar capacidade de zoom óptico
+                const [track] = stream.getVideoTracks();
+                const cap = track.getCapabilities();
+                maxOpticalZoom = cap.zoom ? (cap.zoom.max || 1) : 1;
                 currentZoom = 1;
                 updateZoomDisplay();
-                video.style.transform = `scale(${currentZoom})`;
+                video.style.transform = `scale(1)`;
                 videoContainer.style.display = 'block';
                 controls.style.display = 'flex';
                 startFPSCounter();
             } catch (e) {
-                if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(e.name)) {
+                const errName = e.name;
+                if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(errName)) {
                     alert('Qualidade não suportado');
-                } else if (e.name === 'NotAllowedError') {
+                } else if (errName === 'NotAllowedError') {
                     alert('Permissão para câmera negada');
                 } else {
                     alert('Erro ao acessar câmera: ' + e.message);
@@ -194,20 +207,15 @@
             controls.style.display = 'flex';
             photoContainer.style.display = 'block';
 
-            // Zoom fixo + slider
+            // Zoom: tick buttons e slider
             [0.5, 1, 5].forEach(z => {
                 const btn = document.createElement('button');
                 btn.textContent = z + 'x';
                 btn.onclick = () => setZoom(z);
                 controls.appendChild(btn);
             });
-            const zoomSlider = document.createElement('input');
-            zoomSlider.type = 'range';
-            zoomSlider.min = 1;
-            zoomSlider.max = 100;
-            zoomSlider.value = 1;
-            zoomSlider.oninput = () => setZoom(zoomSlider.value);
-            controls.appendChild(zoomSlider);
+            zoomBar.oninput = () => setZoom(zoomBar.value);
+            controls.appendChild(zoomBar);
 
             const captureBtn = document.createElement('button');
             captureBtn.textContent = 'Capturar Foto';
@@ -222,11 +230,34 @@
             gridToggleBtn.onclick = toggleGrid;
         }
 
-        function setZoom(value) {
-            currentZoom = value;
-            video.style.transform = `scale(${currentZoom})`;
+        async function setZoom(value) {
+            const zoomRequested = parseFloat(value);
+            const [track] = stream.getVideoTracks();
+            const cap = track.getCapabilities();
+            if (cap.zoom) {
+                if (zoomRequested <= maxOpticalZoom) {
+                    try {
+                        await track.applyConstraints({ advanced: [{ zoom: zoomRequested }] });
+                        currentZoom = zoomRequested;
+                        video.style.transform = `scale(1)`;
+                    } catch {
+                        currentZoom = maxOpticalZoom;
+                    }
+                } else {
+                    // Aplicar zoom óptico max e digital adicional
+                    await track.applyConstraints({ advanced: [{ zoom: maxOpticalZoom }] });
+                    const digitalZoom = zoomRequested / maxOpticalZoom;
+                    video.style.transform = `scale(${digitalZoom})`;
+                    currentZoom = zoomRequested;
+                }
+            } else {
+                // Sem zoom óptico, usar digital
+                const digitalZoom = zoomRequested;
+                video.style.transform = `scale(${digitalZoom})`;
+                currentZoom = zoomRequested;
+            }
+            zoomBar.value = zoomRequested;
             updateZoomDisplay();
-            updatePIP();
         }
 
         function updateZoomDisplay() {
@@ -397,8 +428,7 @@
             micToggleBtn.style.background = includeAudio ? '#0066cc' : '#333';
             micToggleBtn.textContent = `Mic: ${includeAudio ? 'On' : 'Off'}`;
             if (stream) {
-                const audioTracks = stream.getAudioTracks();
-                audioTracks.forEach(t => t.enabled = includeAudio);
+                stream.getAudioTracks().forEach(t => t.enabled = includeAudio);
             }
         }
 
@@ -419,16 +449,17 @@
         }
 
         function updatePIP() {
-            const w = pipView.width;
-            const h = pipView.height;
+            const rect = video.getBoundingClientRect();
+            pipView.width = 100;
+            pipView.height = 178;
             const ctxPip = pipView.getContext('2d');
-            ctxPip.drawImage(video, 0, 0, w, h);
-            // Desenhar retângulo que representa área zoom
-            const rectW = w / currentZoom;
-            const rectH = h / currentZoom;
+            ctxPip.clearRect(0, 0, pipView.width, pipView.height);
+            ctxPip.drawImage(video, 0, 0, pipView.width, pipView.height);
+            const rectW = pipView.width / (currentZoom / maxOpticalZoom > 1 ? (currentZoom / maxOpticalZoom) : 1);
+            const rectH = pipView.height / (currentZoom / maxOpticalZoom > 1 ? (currentZoom / maxOpticalZoom) : 1);
             ctxPip.strokeStyle = 'yellow';
             ctxPip.lineWidth = 2;
-            ctxPip.strokeRect((w - rectW) / 2, (h - rectH) / 2, rectW, rectH);
+            ctxPip.strokeRect((pipView.width - rectW) / 2, (pipView.height - rectH) / 2, rectW, rectH);
         }
 
         function drawPIP() {
@@ -518,7 +549,7 @@
         document.getElementById('galleryBtn').onclick = () => showGallery();
         document.getElementById('backToMainBtn').onclick = () => hideAllSections();
 
-        // Inicialização padrão
+        // Inicialização
         window.onload = () => {
             hideAllSections();
         };
