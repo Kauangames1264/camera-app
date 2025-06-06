@@ -9,7 +9,7 @@
         #videoContainer, #photoContainer, #controls, #galleryContainer { max-width: 600px; width: 100%; margin-top: 20px; position: relative; }
         video, canvas, img { width: 100%; aspect-ratio: 9/16; object-fit: cover; border-radius: 8px; background: #000; }
         #controls { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 10px; }
-        button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; }
+        button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; font-size: 1em; }
         button:hover, select:hover, input[type=range]:hover { background: #555; cursor: pointer; }
         input[type=range] { -webkit-appearance: none; background: transparent; width: 100%; margin: 10px 0; }
         input[type=range]:focus { outline: none; }
@@ -18,6 +18,7 @@
         input[type=range]::-moz-range-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
         input[type=range]::-moz-range-thumb { width: 16px; height: 16px; background: #0f0; border-radius: 50%; border: none; }
         #zoomTicks, #zoomTicksVideo { display: flex; justify-content: space-between; font-size: 0.75em; margin-top: -8px; color: #888; }
+        #focusControls, #focusControlsPhoto { display: flex; gap: 10px; margin-top: 10px; }
         #optControls { display: flex; flex-direction: column; margin-top: 10px; }
         #optControls label { margin: 5px 0; }
         #timerDisplay, #zoomDisplay, #fpsDisplay { font-size: 1em; margin: 5px; display: inline-block; }
@@ -31,9 +32,8 @@
             linear-gradient(to bottom, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%);
             background-size: 100% 100%; background-repeat: no-repeat;
         }
-        #focusOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
-        #focusOverlay .focus-box { position: absolute; top: 50%; left: 50%; width: 60%; height: 60%; transform: translate(-50%, -50%); border: 2px solid #0f0; }
-        #focusControls { display: flex; gap: 10px; margin-top: 10px; }
+        #focusOverlay, #focusOverlayPhoto { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+        #focusOverlay .focus-box, #focusOverlayPhoto .focus-box { position: absolute; top: 50%; left: 50%; width: 60%; height: 60%; transform: translate(-50%, -50%); border: 2px solid #0f0; }
         #pipView { position: absolute; top: 10px; right: 10px; width: 100px; height: 178px; border: 2px solid #fff; }
     </style>
 </head>
@@ -76,13 +76,13 @@
     <!-- Contêiner foto/canvas e otimização -->
     <div id="photoContainer" style="display:none;">
         <canvas id="photoCanvas"></canvas>
-        <div id="focusOverlay"><div class="focus-box"></div></div>
+        <div id="focusOverlayPhoto"><div class="focus-box"></div></div>
         <!-- Barra de Zoom Foto -->
         <input type="range" id="zoomBar" min="0.5" max="100" step="0.1" value="1">
         <div id="zoomTicks">
             <span>0.5x</span><span>1x</span><span>2x</span><span>5x</span><span>10x</span><span>25x</span><span>50x</span><span>75x</span><span>100x</span>
         </div>
-        <div id="focusControls">
+        <div id="focusControlsPhoto">
             <button id="autoFocusBtnPhoto">Foco Automático</button>
             <button id="manualFocusBtnPhoto">Foco Manual</button>
             <input type="range" id="focusSliderPhoto" min="0" max="1" step="0.01" value="0.5" style="display:none;">
@@ -126,7 +126,8 @@
         const zoomBar = document.getElementById('zoomBar');
         const pipView = document.getElementById('pipView');
 
-        const focusOverlay = document.querySelectorAll('#focusOverlay');
+        const focusOverlay = document.getElementById('focusOverlay');
+        const focusOverlayPhoto = document.getElementById('focusOverlayPhoto');
         const autoFocusBtnVideo = document.getElementById('autoFocusBtn');
         const manualFocusBtnVideo = document.getElementById('manualFocusBtn');
         const focusSliderVideo = document.getElementById('focusSlider');
@@ -247,10 +248,11 @@
             captureBtn.onclick = capturePhoto;
             controls.appendChild(captureBtn);
 
-            // Foco
-            autoFocusBtnPhoto.onclick = () => setFocusMode('continuous');
-            manualFocusBtnPhoto.onclick = () => { focusSliderPhoto.style.display = 'inline-block'; focusOverlay[1].style.display = 'block'; };
-            focusSliderPhoto.oninput = () => setManualFocus(focusSliderPhoto.value);
+            // Foco Foto
+            autoFocusBtnPhoto.onclick = () => setFocusMode('continuous', track => track);
+            manualFocusBtnPhoto.onclick = () => { focusSliderPhoto.style.display = 'inline-block'; focusOverlayPhoto.style.display = 'block'; };
+            focusSliderPhoto.oninput = () => setManualFocus(focusSliderPhoto.value, track => track);
+            focusSliderPhoto.style.display = 'none';
 
             optControls.style.display = 'none';
             photoContainer.appendChild(optControls);
@@ -366,27 +368,33 @@
             gridToggleBtn.textContent = `Grade: ${isOn ? 'Off' : 'On'}`;
         }
 
-        async function setFocusMode(mode) {
-            const [track] = stream.getVideoTracks();
+        async function setFocusMode(mode, getTrack) {
+            const track = stream.getVideoTracks()[0];
             const cap = track.getCapabilities();
             if (cap.focusMode) {
                 try {
                     await track.applyConstraints({ advanced: [{ focusMode: mode }] });
                     if (mode === 'continuous') {
-                        focusOverlay[0].style.display = 'none';
-                        focusOverlay[1].style.display = 'none';
+                        focusOverlay.style.display = 'none';
+                        focusOverlayPhoto.style.display = 'none';
+                        focusSliderVideo.style.display = 'none';
+                        focusSliderPhoto.style.display = 'none';
                     }
                 } catch (e) { console.warn('Foco não suportado:', e); }
             }
         }
 
         async function setManualFocus(value) {
-            const [track] = stream.getVideoTracks();
+            const track = stream.getVideoTracks()[0];
             const cap = track.getCapabilities();
             if (cap.focusDistance) {
                 try {
                     await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: parseFloat(value) }] });
-                    focusOverlay.forEach(o => o.style.display = 'block');
+                    if (currentMode === 'video') {
+                        focusOverlay.style.display = 'block';
+                    } else if (currentMode === 'photo') {
+                        focusOverlayPhoto.style.display = 'block';
+                    }
                 } catch (e) { console.warn('Foco manual não suportado:', e); }
             }
         }
@@ -402,7 +410,6 @@
             recordControls.appendChild(timerDisplay);
             recordControls.appendChild(micToggleBtn);
 
-            // Resolução
             const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
             const sel = document.createElement('select');
             resolutions.forEach(res => {
@@ -414,15 +421,13 @@
             sel.onchange = () => changeVideoResolution(sel.value);
             controls.appendChild(sel);
 
-            // Zoom fixo 1x e 2x
             const btn1 = document.createElement('button'); btn1.textContent = '1x'; btn1.onclick = () => setZoom(1);
             const btn2 = document.createElement('button'); btn2.textContent = '2x'; btn2.onclick = () => setZoom(2);
             controls.appendChild(btn1);
             controls.appendChild(btn2);
 
-            // Foco vídeo
             autoFocusBtnVideo.onclick = () => setFocusMode('continuous');
-            manualFocusBtnVideo.onclick = () => { focusSliderVideo.style.display = 'inline-block'; focusOverlay[0].style.display = 'block'; };
+            manualFocusBtnVideo.onclick = () => { focusSliderVideo.style.display = 'inline-block'; focusOverlay.style.display = 'block'; };
             focusSliderVideo.oninput = () => setManualFocus(focusSliderVideo.value);
             focusSliderVideo.style.display = 'none';
 
@@ -439,11 +444,11 @@
 
         async function changeVideoResolution(label) {
             const mapping = {
-                "480p": { video: { width: { exact: 640 }, height: { exact: 480 }, facingMode: 'environment' }, audio: true },
-                "720p": { video: { width: { exact: 1280 }, height: { exact: 720 }, facingMode: 'environment' }, audio: true },
-                "1080p": { video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment' }, audio: true },
-                "1440p": { video: { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment' }, audio: true },
-                "2160p": { video: { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment' }, audio: true }
+                "480p": { video: { width: { exact: 640 }, height: { exact: 480 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+                "720p": { video: { width: { exact: 1280 }, height: { exact: 720 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+                "1080p": { video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+                "1440p": { video: { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
+                "2160p": { video: { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true }
             };
             await initCamera(mapping[label]);
             setupVideoMode();
@@ -522,7 +527,7 @@
             const ctxPip = pipView.getContext('2d');
             ctxPip.clearRect(0, 0, pipView.width, pipView.height);
             ctxPip.drawImage(video, 0, 0, pipView.width, pipView.height);
-            const [track] = stream.getVideoTracks();
+            const track = stream.getVideoTracks()[0];
             const cap = track.getCapabilities();
             const minZ = cap.zoom ? cap.zoom.min : 1;
             const maxZ = cap.zoom ? cap.zoom.max : 1;
@@ -606,7 +611,8 @@
             photoContainer.style.display = 'none';
             optControls.style.display = 'none';
             galleryContainer.style.display = 'none';
-            focusOverlay.forEach(o => o.style.display = 'none');
+            focusOverlay.style.display = 'none';
+            focusOverlayPhoto.style.display = 'none';
             focusSliderVideo.style.display = 'none';
             focusSliderPhoto.style.display = 'none';
         }
