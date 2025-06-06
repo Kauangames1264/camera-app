@@ -5,172 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>App de Câmera Android</title>
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    #videoContainer,
-    #photoContainer,
-    #controls,
-    #galleryContainer {
-      max-width: 600px;
-      width: 100%;
-      margin-top: 20px;
-      position: relative;
-    }
-    video, canvas, img {
-      width: 100%;
-      aspect-ratio: 9/16;
-      object-fit: cover;
-      border-radius: 8px;
-      background: #000;
-    }
-    #controls {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-around;
-      margin-top: 10px;
-    }
-    button, select, input[type=range] {
-      margin: 5px;
-      padding: 10px;
-      border: none;
-      border-radius: 8px;
-      background: #333;
-      color: #fff;
-      font-size: 1em;
-    }
-    button:hover, select:hover, input[type=range]:hover {
-      background: #555;
-      cursor: pointer;
-    }
-    input[type=range] {
-      -webkit-appearance: none;
-      background: transparent;
-      width: 100%;
-      margin: 10px 0;
-    }
-    input[type=range]:focus {
-      outline: none;
-    }
-    input[type=range]::-webkit-slider-runnable-track {
-      height: 4px;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 2px;
-    }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 16px;
-      height: 16px;
-      background: #0f0;
-      border-radius: 50%;
-      margin-top: -6px;
-    }
-    input[type=range]::-moz-range-track {
-      height: 4px;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 2px;
-    }
-    input[type=range]::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
-      background: #0f0;
-      border-radius: 50%;
-      border: none;
-    }
-    #zoomTicks, #zoomTicksVideo {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.75em;
-      margin-top: -8px;
-      color: #888;
-    }
-    #focusControls, #focusControlsPhoto {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    #optControls {
-      display: flex;
-      flex-direction: column;
-      margin-top: 10px;
-    }
-    #optControls label {
-      margin: 5px 0;
-    }
-    #timerDisplay, #zoomDisplay, #fpsDisplay {
-      font-size: 1em;
-      margin: 5px;
-      display: inline-block;
-    }
-    #galleryItems {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .gallery-item {
-      position: relative;
-    }
-    .gallery-item img, .gallery-item video {
-      max-height: 200px;
-    }
-    .gallery-item button, .gallery-item a {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      padding: 5px;
-      background: rgba(0,0,0,0.7);
-      color: #fff;
-      text-decoration: none;
-    }
-    #gridOverlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      display: none;
-    }
-    #gridOverlay::before {
-      background:
+    body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #fff; display: flex; flex-direction: column; align-items: center; }
+    #videoContainer, #photoContainer, #controls, #galleryContainer { max-width: 600px; width: 100%; margin-top: 20px; position: relative; }
+    video, canvas, img { width: 100%; aspect-ratio: 9/16; object-fit: cover; border-radius: 8px; background: #000; }
+    #controls { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 10px; }
+    button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; font-size: 1em; }
+    button:hover, select:hover, input[type=range]:hover { background: #555; cursor: pointer; }
+    input[type=range] { -webkit-appearance: none; background: transparent; width: 100%; margin: 10px 0; }
+    input[type=range]:focus { outline: none; }
+    input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #0f0; border-radius: 50%; margin-top: -6px; }
+    input[type=range]::-moz-range-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
+    input[type=range]::-moz-range-thumb { width: 16px; height: 16px; background: #0f0; border-radius: 50%; border: none; }
+    #zoomTicks, #zoomTicksVideo { display: flex; justify-content: space-between; font-size: 0.75em; margin-top: -8px; color: #888; }
+    #focusControls, #focusControlsPhoto { display: flex; gap: 10px; margin-top: 10px; }
+    #optControls { display: flex; flex-direction: column; margin-top: 10px; }
+    #optControls label { margin: 5px 0; }
+    #timerDisplay, #zoomDisplay, #fpsDisplay { font-size: 1em; margin: 5px; display: inline-block; }
+    #galleryItems { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .gallery-item { position: relative; }
+    .gallery-item img, .gallery-item video { max-height: 200px; }
+    .gallery-item button, .gallery-item a { position: absolute; top: 5px; right: 5px; padding: 5px; background: rgba(0,0,0,0.7); color: #fff; text-decoration: none; }
+    #gridOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+    #gridOverlay::before { background:
         linear-gradient(to right, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%),
         linear-gradient(to bottom, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%);
-      background-size: 100% 100%;
-      background-repeat: no-repeat;
+      background-size: 100% 100%; background-repeat: no-repeat;
     }
-    #focusOverlay, #focusOverlayPhoto {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      display: none;
-    }
-    #focusOverlay .focus-box, #focusOverlayPhoto .focus-box {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 60%;
-      height: 60%;
-      transform: translate(-50%, -50%);
-      border: 2px solid #0f0;
-    }
-    #pipView {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 100px;
-      height: 178px;
-      border: 2px solid #fff;
-    }
+    #focusOverlay, #focusOverlayPhoto { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+    #focusOverlay .focus-box, #focusOverlayPhoto .focus-box { position: absolute; top: 50%; left: 50%; width: 60%; height: 60%; transform: translate(-50%, -50%); border: 2px solid #0f0; }
+    #pipView { position: absolute; top: 10px; right: 10px; width: 100px; height: 178px; border: 2px solid #fff; }
   </style>
 </head>
 <body>
@@ -286,7 +150,7 @@
     let recordStartTime = 0;
     let recordTimerInterval = null;
     let isPaused = false;
-    let includeAudio = false;  // No modo foto, áudio fica desativado
+    let includeAudio = false;
 
     const photos = [];
     const videos = [];
@@ -299,98 +163,11 @@
     let lastFrameTime = performance.now();
     let frameCount = 0;
 
-    /**
-     * initCamera com priorização de resoluções (método 1):
-     *   - Tentar 4K (4032×3024)
-     *   - Se falhar, tentar 1080p (1920×1080)
-     *   - Se falhar, tentar 720p (1280×720)
-     *   - Se falhar, fallback genérico ({ facingMode: 'environment' })
-     */
-    async function initCameraPhotoMode() {
+    // initCamera genérico (retirado método 1)
+    async function initCamera(constraints) {
       if (stream) stream.getTracks().forEach(t => t.stop());
-      let constraints;
-      // 1) Tentar 4K (se a câmera suportar)
       try {
-        constraints = {
-          video: {
-            width: { exact: 4032 },
-            height: { exact: 3024 },
-            facingMode: 'environment',
-            focusMode: 'continuous'
-          },
-          audio: false
-        };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (_) {
-        // 2) Tentar Full HD (1080p)
-        try {
-          constraints = {
-            video: {
-              width: { exact: 1920 },
-              height: { exact: 1080 },
-              facingMode: 'environment',
-              focusMode: 'continuous'
-            },
-            audio: false
-          };
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (_) {
-          // 3) Tentar HD (720p)
-          try {
-            constraints = {
-              video: {
-                width: { exact: 1280 },
-                height: { exact: 720 },
-                facingMode: 'environment',
-                focusMode: 'continuous'
-              },
-              audio: false
-            };
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-          } catch (e) {
-            // 4) Qualquer resolução padrão
-            try {
-              constraints = {
-                video: { facingMode: 'environment', focusMode: 'continuous' },
-                audio: false
-              };
-              stream = await navigator.mediaDevices.getUserMedia(constraints);
-            } catch (err) {
-              const errName = err.name;
-              if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(errName)) {
-                alert('Qualidade não suportado');
-              } else if (errName === 'NotAllowedError') {
-                alert('Permissão para câmera negada');
-              } else {
-                alert('Erro ao acessar câmera: ' + err.message);
-              }
-              console.error('Erro ao acessar câmera:', err);
-              return;
-            }
-          }
-        }
-      }
-
-      // Configura o stream no <video> e detecta capacidades de zoom/foco
-      video.srcObject = stream;
-      const [track] = stream.getVideoTracks();
-      const cap = track.getCapabilities();
-      maxOpticalZoom = cap.zoom ? (cap.zoom.max || 1) : 1;
-      minOpticalZoom = cap.zoom ? (cap.zoom.min || 1) : 1;
-      currentZoom = 1;
-      updateZoomDisplay();
-      video.style.transform = `scale(1)`;
-      videoContainer.style.display = 'block';
-      controls.style.display = 'flex';
-      startFPSCounter();
-    }
-
-    // Modo Vídeo: o initCamera já existia, mantemos a lógica para
-    // resolução manual (garantimos foco contínuo por padrão).
-    async function initCameraVideoMode(mapping) {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(mapping);
         video.srcObject = stream;
         const [track] = stream.getVideoTracks();
         const cap = track.getCapabilities();
@@ -398,7 +175,7 @@
         minOpticalZoom = cap.zoom ? (cap.zoom.min || 1) : 1;
         currentZoom = 1;
         updateZoomDisplay();
-        video.style.transform = `scale(1)`;
+        video.style.transform = 'scale(1)';
         videoContainer.style.display = 'block';
         controls.style.display = 'flex';
         startFPSCounter();
@@ -451,7 +228,7 @@
       videoContainer.style.display = 'none';
     }
 
-    // ------- Modo Foto -------
+    // ------- Modo Foto (com método 4: capturing multi-frame super-resolution simplificado) -------
     function setupPhotoMode() {
       currentMode = 'photo';
       clearControls();
@@ -474,15 +251,12 @@
 
       const captureBtn = document.createElement('button');
       captureBtn.textContent = 'Capturar Foto';
-      captureBtn.onclick = capturePhoto;
+      captureBtn.onclick = capturePhotoSuperRes;
       controls.appendChild(captureBtn);
 
       // Foco Foto
       autoFocusBtnPhoto.onclick = () => setFocusMode('continuous');
-      manualFocusBtnPhoto.onclick = () => {
-        focusSliderPhoto.style.display = 'inline-block';
-        focusOverlayPhoto.style.display = 'block';
-      };
+      manualFocusBtnPhoto.onclick = () => { focusSliderPhoto.style.display = 'inline-block'; focusOverlayPhoto.style.display = 'block'; };
       focusSliderPhoto.oninput = () => setManualFocus(focusSliderPhoto.value);
       focusSliderPhoto.style.display = 'none';
 
@@ -500,11 +274,9 @@
       const cap = track.getCapabilities();
       if (cap.zoom) {
         try {
-          // Tenta zoom óptico diretamente em qualquer valor (se estiver entre min e max)
           await track.applyConstraints({ advanced: [{ zoom: zoomRequested }] });
           video.style.transform = 'scale(1)';
         } catch {
-          // Se não suportar (ou valor abaixo/ acima do range), calculamos fallback digital
           const minZ = cap.zoom.min;
           const maxZ = cap.zoom.max;
           if (zoomRequested < minZ) {
@@ -520,7 +292,6 @@
           }
         }
       } else {
-        // Sem suporte óptico, apenas zoom digital via scale
         video.style.transform = `scale(${zoomRequested})`;
       }
       currentZoom = zoomRequested;
@@ -532,16 +303,69 @@
       zoomDisplay.textContent = `${currentZoom}x`;
     }
 
-    function capturePhoto() {
-      photoCanvas.width = video.videoWidth;
-      photoCanvas.height = video.videoHeight;
+    /**
+     * Método 4 (Multi-Frame Super-Resolution simplificado):
+     * Captura 5 quadros seguidos em intervalo curto (~100ms), faz média de pixels
+     * e produz uma imagem final mais nítida.
+     */
+    async function capturePhotoSuperRes() {
+      const framesToCapture = 5;
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      photoCanvas.width = w;
+      photoCanvas.height = h;
 
-      // Configurar suavização de alta qualidade
+      // Criar canvases temporários para acumular
+      const tempCanvases = [];
+      const tempCtxs = [];
+      for (let i = 0; i < framesToCapture; i++) {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        tempCanvases.push(c);
+        tempCtxs.push(c.getContext('2d'));
+      }
+
+      // Capturar vários quadros com pequenos delays
+      for (let i = 0; i < framesToCapture; i++) {
+        // Desenhar frame atual
+        tempCtxs[i].drawImage(video, 0, 0, w, h);
+        // Aguardar ~100ms antes do próximo
+        await new Promise(res => setTimeout(res, 100));
+      }
+
+      // Obter ImageData de cada canvas e acumular soma de canais
+      const accumR = new Float32Array(w * h);
+      const accumG = new Float32Array(w * h);
+      const accumB = new Float32Array(w * h);
+      for (let i = 0; i < framesToCapture; i++) {
+        const imgData = tempCtxs[i].getImageData(0, 0, w, h).data;
+        for (let p = 0; p < w * h; p++) {
+          const idx = p * 4;
+          accumR[p] += imgData[idx];
+          accumG[p] += imgData[idx + 1];
+          accumB[p] += imgData[idx + 2];
+        }
+      }
+
+      // Criar ImageData final com média dos valores
+      const finalImg = ctx.createImageData(w, h);
+      for (let p = 0; p < w * h; p++) {
+        const idx = p * 4;
+        finalImg.data[idx] = Math.round(accumR[p] / framesToCapture);
+        finalImg.data[idx + 1] = Math.round(accumG[p] / framesToCapture);
+        finalImg.data[idx + 2] = Math.round(accumB[p] / framesToCapture);
+        finalImg.data[idx + 3] = 255;
+      }
+
+      // Desenhar imagem final no canvas principal
+      ctx.putImageData(finalImg, 0, 0);
+
+      // Aplicar suavização de alta qualidade (para casos de zoom digital)
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(video, 0, 0);
 
-      // Aplica filtro de nitidez (unsharp mask) ao final da captura
+      // Aplicar filtro de nitidez
       sharpenCanvas(photoCanvas);
 
       optControls.style.display = 'flex';
@@ -644,39 +468,6 @@
       }
     }
 
-    // Aplica Sharpen (Unsharp Mask) a um canvas
-    function sharpenCanvas(canvas) {
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width, h = canvas.height;
-      const srcData = ctx.getImageData(0, 0, w, h);
-      const dstData = ctx.createImageData(w, h);
-
-      const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
-      const divisor = 1;
-      const half = 1;
-
-      for (let y = half; y < h - half; y++) {
-        for (let x = half; x < w - half; x++) {
-          let sumR = 0, sumG = 0, sumB = 0;
-          for (let ky = -half; ky <= half; ky++) {
-            for (let kx = -half; kx <= half; kx++) {
-              const weight = kernel[(ky + half) * 3 + (kx + half)];
-              const idx = ((y + ky) * w + (x + kx)) * 4;
-              sumR += srcData.data[idx] * weight;
-              sumG += srcData.data[idx + 1] * weight;
-              sumB += srcData.data[idx + 2] * weight;
-            }
-          }
-          const i = (y * w + x) * 4;
-          dstData.data[i] = Math.min(Math.max(sumR / divisor, 0), 255);
-          dstData.data[i + 1] = Math.min(Math.max(sumG / divisor, 0), 255);
-          dstData.data[i + 2] = Math.min(Math.max(sumB / divisor, 0), 255);
-          dstData.data[i + 3] = srcData.data[i + 3];
-        }
-      }
-      ctx.putImageData(dstData, 0, 0);
-    }
-
     // ------- Modo Vídeo -------
     function setupVideoMode() {
       currentMode = 'video';
@@ -688,7 +479,6 @@
       recordControls.appendChild(timerDisplay);
       recordControls.appendChild(micToggleBtn);
 
-      // Resolução manual
       const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
       const sel = document.createElement('select');
       resolutions.forEach(res => {
@@ -700,18 +490,13 @@
       sel.onchange = () => changeVideoResolution(sel.value);
       controls.appendChild(sel);
 
-      // Zoom fixo 1x e 2x
       const btn1 = document.createElement('button'); btn1.textContent = '1x'; btn1.onclick = () => setZoom(1);
       const btn2 = document.createElement('button'); btn2.textContent = '2x'; btn2.onclick = () => setZoom(2);
       controls.appendChild(btn1);
       controls.appendChild(btn2);
 
-      // Foco Vídeo
       autoFocusBtnVideo.onclick = () => setFocusMode('continuous');
-      manualFocusBtnVideo.onclick = () => {
-        focusSliderVideo.style.display = 'inline-block';
-        focusOverlay.style.display = 'block';
-      };
+      manualFocusBtnVideo.onclick = () => { focusSliderVideo.style.display = 'inline-block'; focusOverlay.style.display = 'block'; };
       focusSliderVideo.oninput = () => setManualFocus(focusSliderVideo.value);
       focusSliderVideo.style.display = 'none';
 
@@ -734,7 +519,7 @@
         "1440p": { video: { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true },
         "2160p": { video: { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true }
       };
-      await initCameraVideoMode(mapping[label]);
+      await initCamera(mapping[label]);
       setupVideoMode();
     }
 
@@ -747,9 +532,7 @@
         alert('Seu navegador não suporta MediaRecorder.');
         return;
       }
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
       mediaRecorder.onstop = () => {
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         videos.push({ blob });
@@ -824,9 +607,7 @@
       const rectH = pipView.height / digital;
       ctxPip.strokeStyle = 'yellow';
       ctxPip.lineWidth = 2;
-      ctxPip.strokeRect((pipView.width - rectW) / 2,
-                        (pipView.height - rectH) / 2,
-                        rectW, rectH);
+      ctxPip.strokeRect((pipView.width - rectW) / 2, (pipView.height - rectH) / 2, rectW, rectH);
     }
 
     function drawPIP() {
@@ -869,7 +650,7 @@
         vid.controls = true;
         div.appendChild(vid);
         const dlBtn = document.createElement('a');
-        dlBtn.textContent = 'Download';
+        dlBtn.content = 'Download';
         dlBtn.href = url;
         dlBtn.download = `video_${index + 1}.webm`;
         div.appendChild(dlBtn);
@@ -907,29 +688,18 @@
 
     document.getElementById('photoModeBtn').onclick = async () => {
       hideAllSections();
-      await initCameraPhotoMode();
+      await initCamera({ video: { facingMode: 'environment', focusMode: 'continuous' }, audio: false });
       setupPhotoMode();
     };
     document.getElementById('videoModeBtn').onclick = async () => {
       hideAllSections();
-      // Começa no modo 1080p por padrão
-      await initCameraVideoMode({
-        video: {
-          width: { exact: 1920 },
-          height: { exact: 1080 },
-          facingMode: 'environment',
-          focusMode: 'continuous'
-        },
-        audio: true
-      });
+      await initCamera({ video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment', focusMode: 'continuous' }, audio: true });
       setupVideoMode();
     };
     document.getElementById('galleryBtn').onclick = () => showGallery();
     document.getElementById('backToMainBtn').onclick = () => hideAllSections();
 
-    window.onload = () => {
-      hideAllSections();
-    };
+    window.onload = () => { hideAllSections(); };
   </script>
 </body>
 </html>
