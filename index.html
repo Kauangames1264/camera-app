@@ -131,48 +131,38 @@
         // Zoom/Otical vs Digital
         let currentZoom = 1;
         let maxOpticalZoom = 1;
+        let minOpticalZoom = 1;
 
         // FPS
         let lastFrameTime = performance.now();
         let frameCount = 0;
 
-        // Tentativas de resolução automática: preferir 1920x1080, senão 1280x720
         async function initCamera(constraints) {
             if (stream) stream.getTracks().forEach(t => t.stop());
             try {
-                // Primeiro tenta 1920x1080
-                const high = { video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment' }, audio: includeAudio };
-                stream = await navigator.mediaDevices.getUserMedia(high);
-            } catch {
-                try {
-                    // Se falhar, tenta 1280x720
-                    const mid = { video: { width: { exact: 1280 }, height: { exact: 720 }, facingMode: 'environment' }, audio: includeAudio };
-                    stream = await navigator.mediaDevices.getUserMedia(mid);
-                } catch (e) {
-                    const errName = e.name;
-                    if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(errName)) {
-                        alert('Qualidade não suportado');
-                        return;
-                    } else if (errName === 'NotAllowedError') {
-                        alert('Permissão para câmera negada');
-                        return;
-                    } else {
-                        alert('Erro ao acessar câmera: ' + e.message);
-                        return;
-                    }
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                const [track] = stream.getVideoTracks();
+                const cap = track.getCapabilities();
+                maxOpticalZoom = cap.zoom ? (cap.zoom.max || 1) : 1;
+                minOpticalZoom = cap.zoom ? (cap.zoom.min || 1) : 1;
+                currentZoom = 1;
+                updateZoomDisplay();
+                video.style.transform = `scale(1)`;
+                videoContainer.style.display = 'block';
+                controls.style.display = 'flex';
+                startFPSCounter();
+            } catch (e) {
+                const errName = e.name;
+                if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(errName)) {
+                    alert('Qualidade não suportado');
+                } else if (errName === 'NotAllowedError') {
+                    alert('Permissão para câmera negada');
+                } else {
+                    alert('Erro ao acessar câmera: ' + e.message);
                 }
+                console.error('Erro ao acessar câmera:', e);
             }
-            video.srcObject = stream;
-            // Detectar capacidade de zoom óptico
-            const [track] = stream.getVideoTracks();
-            const cap = track.getCapabilities();
-            maxOpticalZoom = cap.zoom ? (cap.zoom.max || 1) : 1;
-            currentZoom = 1;
-            updateZoomDisplay();
-            video.style.transform = `scale(1)`;
-            videoContainer.style.display = 'block';
-            controls.style.display = 'flex';
-            startFPSCounter();
         }
 
         function formatTime(seconds) {
@@ -220,8 +210,8 @@
             controls.style.display = 'flex';
             photoContainer.style.display = 'block';
 
-            // Zoom: tick buttons e slider
-            const zValues = [0.5, 1, Math.min(2, maxOpticalZoom), 5, 10, 25, 50, 75, 100];
+            // Zoom: tick buttons e slider (0.5x se suportado)
+            const zValues = [0.5, 1, 2, 5, 10, 25, 50, 75, 100];
             zValues.forEach(z => {
                 const btn = document.createElement('button');
                 btn.textContent = z + 'x';
@@ -249,22 +239,30 @@
             const zoomRequested = parseFloat(value);
             const [track] = stream.getVideoTracks();
             const cap = track.getCapabilities();
+            const minZ = cap.zoom ? cap.zoom.min : 1;
+            const maxZ = cap.zoom ? cap.zoom.max : 1;
             if (cap.zoom) {
-                if (zoomRequested <= maxOpticalZoom) {
+                if (zoomRequested >= minZ && zoomRequested <= maxZ) {
+                    // Zoom óptico puro
                     try {
                         await track.applyConstraints({ advanced: [{ zoom: zoomRequested }] });
                         video.style.transform = `scale(1)`;
                     } catch {
                         video.style.transform = `scale(1)`;
                     }
+                } else if (zoomRequested < minZ) {
+                    // Zoom óptico para minZ e escala digital <1 para zoom out
+                    try { await track.applyConstraints({ advanced: [{ zoom: minZ }] }); } catch {}
+                    const digital = zoomRequested / minZ;
+                    video.style.transform = `scale(${digital})`;
                 } else {
-                    try {
-                        await track.applyConstraints({ advanced: [{ zoom: maxOpticalZoom }] });
-                    } catch {}
-                    const digitalZoom = zoomRequested / maxOpticalZoom;
-                    video.style.transform = `scale(${digitalZoom})`;
+                    // Zoom óptico máximo e digital adicional
+                    try { await track.applyConstraints({ advanced: [{ zoom: maxZ }] }); } catch {}
+                    const digital = zoomRequested / maxZ;
+                    video.style.transform = `scale(${digital})`;
                 }
             } else {
+                // Sem suporte óptico, apenas digital
                 video.style.transform = `scale(${zoomRequested})`;
             }
             currentZoom = zoomRequested;
@@ -358,8 +356,8 @@
             recordControls.appendChild(timerDisplay);
             recordControls.appendChild(micToggleBtn);
 
-            // Resolução automática já aplicada em initCamera
-            const resolutions = ["Auto"]; // Manual trocas não necessárias
+            // Seleção de resolução manual
+            const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
             const sel = document.createElement('select');
             resolutions.forEach(res => {
                 const option = document.createElement('option');
@@ -367,9 +365,10 @@
                 option.textContent = res;
                 sel.appendChild(option);
             });
+            sel.onchange = () => changeVideoResolution(sel.value);
             controls.appendChild(sel);
 
-            // Zoom Bar Vídeo
+            // Barra de Zoom Vídeo
             const zoomBarVideo = document.createElement('input');
             zoomBarVideo.type = 'range';
             zoomBarVideo.min = 1;
@@ -395,7 +394,15 @@
         }
 
         async function changeVideoResolution(label) {
-            // Não necessário, resolução automática no initCamera
+            const mapping = {
+                "480p": { video: { width: { exact: 640 }, height: { exact: 480 }, facingMode: 'environment' }, audio: includeAudio },
+                "720p": { video: { width: { exact: 1280 }, height: { exact: 720 }, facingMode: 'environment' }, audio: includeAudio },
+                "1080p": { video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment' }, audio: includeAudio },
+                "1440p": { video: { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment' }, audio: includeAudio },
+                "2160p": { video: { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment' }, audio: includeAudio }
+            };
+            await initCamera(mapping[label]);
+            setupVideoMode();
         }
 
         function startRecording() {
@@ -467,14 +474,17 @@
         }
 
         function updatePIP() {
-            const rect = video.getBoundingClientRect();
             pipView.width = 100;
             pipView.height = 178;
             const ctxPip = pipView.getContext('2d');
             ctxPip.clearRect(0, 0, pipView.width, pipView.height);
             ctxPip.drawImage(video, 0, 0, pipView.width, pipView.height);
-            const optical = Math.min(currentZoom, maxOpticalZoom);
-            const digital = currentZoom > maxOpticalZoom ? currentZoom / maxOpticalZoom : 1;
+            const [track] = stream.getVideoTracks();
+            const cap = track.getCapabilities();
+            const minZ = cap.zoom ? cap.zoom.min : 1;
+            const maxZ = cap.zoom ? cap.zoom.max : 1;
+            const optical = Math.min(currentZoom, maxZ);
+            const digital = currentZoom > maxZ ? currentZoom / maxZ : (currentZoom < minZ ? minZ / currentZoom : 1);
             const rectW = pipView.width / digital;
             const rectH = pipView.height / digital;
             ctxPip.strokeStyle = 'yellow';
@@ -558,12 +568,13 @@
         // Navegação
         document.getElementById('photoModeBtn').onclick = async () => {
             hideAllSections();
-            await initCamera({});
+            await initCamera({ video: { facingMode: 'environment' }, audio: false });
             setupPhotoMode();
         };
         document.getElementById('videoModeBtn').onclick = async () => {
             hideAllSections();
-            await initCamera({});
+            // Inicia com resolução 1080p por padrão
+            await initCamera({ video: { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment' }, audio: true });
             setupVideoMode();
         };
         document.getElementById('galleryBtn').onclick = () => showGallery();
