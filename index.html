@@ -6,14 +6,18 @@
     <title>App de Câmera Android</title>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #fff; display: flex; flex-direction: column; align-items: center; }
-        #videoContainer, #photoContainer, #controls { max-width: 600px; width: 100%; margin-top: 20px; }
-        video, canvas { width: 100%; border-radius: 8px; background: #000; }
+        #videoContainer, #photoContainer, #controls, #galleryContainer { max-width: 600px; width: 100%; margin-top: 20px; }
+        video, canvas, img { width: 100%; border-radius: 8px; background: #000; }
         #controls { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 10px; }
         button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; }
         button:hover, select:hover, input[type=range]:hover { background: #555; cursor: pointer; }
         #optControls { display: flex; flex-direction: column; margin-top: 10px; }
         #optControls label { margin: 5px 0; }
-        #recordingsList { margin-top: 10px; max-height: 150px; overflow-y: auto; }
+        #timerDisplay { font-size: 1.2em; margin: 5px; }
+        #galleryItems { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .gallery-item { position: relative; }
+        .gallery-item img, .gallery-item video { max-height: 200px; }
+        .gallery-item button { position: absolute; top: 5px; right: 5px; padding: 5px; background: rgba(0,0,0,0.7); }
     </style>
 </head>
 <body>
@@ -21,15 +25,25 @@
     <div id="modeSelector">
         <button id="photoModeBtn">Modo Foto</button>
         <button id="videoModeBtn">Modo Vídeo</button>
+        <button id="galleryBtn">Galeria</button>
     </div>
 
+    <!-- Contêiner de vídeo -->
     <div id="videoContainer" style="display:none;">
         <video id="video" autoplay playsinline></video>
     </div>
-    <div id="controls" style="display:none;">
-        <!-- Controles padrão, substituídos de acordo com o modo -->
+    <!-- Controles principais -->
+    <div id="controls" style="display:none;"></div>
+
+    <!-- Timer e botões de gravação -->
+    <div id="recordControls" style="display:none;">
+        <span id="timerDisplay">00:00</span>
+        <button id="pauseRecordingBtn" style="display:none;">Pausar</button>
+        <button id="resumeRecordingBtn" style="display:none;">Retomar</button>
+        <button id="stopRecordingBtn" style="display:none;">Encerrar</button>
     </div>
 
+    <!-- Contêiner foto/canvas e otimização -->
     <div id="photoContainer" style="display:none;">
         <canvas id="photoCanvas"></canvas>
         <div id="optControls" style="display:none;">
@@ -38,10 +52,16 @@
             <label>Contraste: <input type="range" id="contrast" min="0" max="200" value="100"></label>
             <label>Nitidez: <input type="range" id="sharpness" min="0" max="200" value="100"></label>
             <button id="applyOptim">Aplicar Otimização</button>
+            <button id="saveEditedPhotoBtn">Salvar Edição</button>
         </div>
     </div>
 
-    <div id="recordingsList"></div>
+    <!-- Galeria -->
+    <div id="galleryContainer" style="display:none;">
+        <h3>Galeria</h3>
+        <div id="galleryItems"></div>
+        <button id="backToMainBtn">Voltar</button>
+    </div>
 
     <script>
         const video = document.getElementById('video');
@@ -50,15 +70,60 @@
         const controls = document.getElementById('controls');
         const photoContainer = document.getElementById('photoContainer');
         const optControls = document.getElementById('optControls');
-        const recordingsList = document.getElementById('recordingsList');
+        const galleryContainer = document.getElementById('galleryContainer');
+        const galleryItems = document.getElementById('galleryItems');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const pauseBtn = document.getElementById('pauseRecordingBtn');
+        const resumeBtn = document.getElementById('resumeRecordingBtn');
+        const stopBtn = document.getElementById('stopRecordingBtn');
+
         const videoContainer = document.getElementById('videoContainer');
+        const recordControls = document.getElementById('recordControls');
 
         let currentMode = null;
         let stream = null;
-        let track = null;
         let mediaRecorder = null;
         let recordedChunks = [];
+        let recordStartTime = 0;
+        let recordTimerInterval = null;
+        let isPaused = false;
 
+        // Bancos de mídia
+        const photos = []; // { dataUrl: string }
+        const videos = []; // { blob: Blob }
+        let editingPhotoIndex = null;
+
+        // Função para formatar tempo em mm:ss
+        function formatTime(seconds) {
+            const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+            const s = String(seconds % 60).padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        // Inicia o temporizador de gravação
+        function startTimer() {
+            recordStartTime = 0;
+            timerDisplay.textContent = '00:00';
+            recordTimerInterval = setInterval(() => {
+                if (!isPaused) {
+                    recordStartTime++;
+                    timerDisplay.textContent = formatTime(recordStartTime);
+                }
+            }, 1000);
+            pauseBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'inline-block';
+        }
+
+        function stopTimer() {
+            clearInterval(recordTimerInterval);
+            timerDisplay.textContent = '00:00';
+            pauseBtn.style.display = 'none';
+            resumeBtn.style.display = 'none';
+            stopBtn.style.display = 'none';
+            isPaused = false;
+        }
+
+        // Acessar câmera com restrições
         async function initCamera(constraints) {
             if (stream) {
                 stream.getTracks().forEach(t => t.stop());
@@ -66,11 +131,18 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
-                track = stream.getVideoTracks()[0];
+                video.style.transform = 'scale(1)';
+                video.style.transformOrigin = 'center center';
                 videoContainer.style.display = 'block';
                 controls.style.display = 'flex';
             } catch (e) {
-                alert('Erro ao acessar câmera: ' + e.message);
+                if (e.name === 'OverconstrainedError' || e.name === 'NotReadableError' || e.name === 'NotSupportedError') {
+                    alert('Qualidade não suportado');
+                } else if (e.name === 'NotAllowedError') {
+                    alert('Permissão para câmera negada');
+                } else {
+                    alert('Erro ao acessar câmera: ' + e.message);
+                }
                 console.error('Erro ao acessar câmera:', e);
             }
         }
@@ -79,65 +151,56 @@
             controls.innerHTML = '';
             photoContainer.style.display = 'none';
             optControls.style.display = 'none';
-            recordingsList.innerHTML = '';
+            recordControls.style.display = 'none';
+            videoContainer.style.display = 'none';
         }
 
         // ------- Modo Foto -------
         function setupPhotoMode() {
             currentMode = 'photo';
             clearControls();
+            hideAllSections();
+            videoContainer.style.display = 'block';
+            controls.style.display = 'flex';
             photoContainer.style.display = 'block';
 
-            // Botões de zoom fixo
+            // Botões de zoom fixo e slider (usar CSS transform para zoom digital)
             [0.5, 1, 5].forEach(z => {
                 const btn = document.createElement('button');
                 btn.textContent = z + 'x';
-                btn.onclick = () => setZoom(z);
+                btn.onclick = () => setZoomCSS(z);
                 controls.appendChild(btn);
             });
-            // Barra de zoom
             const zoomSlider = document.createElement('input');
             zoomSlider.type = 'range';
             zoomSlider.min = 1;
             zoomSlider.max = 100;
             zoomSlider.value = 1;
-            zoomSlider.oninput = () => setZoom(zoomSlider.value);
+            zoomSlider.oninput = () => setZoomCSS(zoomSlider.value);
             controls.appendChild(zoomSlider);
 
-            // Botão otimizar imagem
-            const optBtn = document.createElement('button');
-            optBtn.textContent = 'Otimizar Imagem';
-            optBtn.onclick = () => { optControls.style.display = 'flex'; };
-            controls.appendChild(optBtn);
-
-            // Botão capturar
+            // Botão capturar e otimizar
             const captureBtn = document.createElement('button');
             captureBtn.textContent = 'Capturar Foto';
             captureBtn.onclick = capturePhoto;
             controls.appendChild(captureBtn);
 
-            // Mostrar controles de otimização
-            const applyBtn = document.getElementById('applyOptim');
-            applyBtn.onclick = applyOptimizations;
+            optControls.style.display = 'none';
+            photoContainer.appendChild(optControls);
+            photoContainer.querySelector('#applyOptim').onclick = applyOptimizations;
+            photoContainer.querySelector('#saveEditedPhotoBtn').onclick = saveEditedPhoto;
         }
 
-        function setZoom(value) {
-            if (!track) return;
-            const capabilities = track.getCapabilities();
-            if (capabilities.zoom) {
-                const clamped = Math.max(capabilities.zoom.min || 1, Math.min(value, capabilities.zoom.max || value));
-                const constraints = { advanced: [{ zoom: clamped }] };
-                track.applyConstraints(constraints).catch(e => console.warn('Zoom não suportado:', e));
-            } else {
-                video.style.transform = `scale(${value})`;
-            }
+        function setZoomCSS(value) {
+            video.style.transform = `scale(${value})`;
         }
 
         function capturePhoto() {
             photoCanvas.width = video.videoWidth;
             photoCanvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);
-            optControls.style.display = 'none';
+            optControls.style.display = 'flex';
+            editingPhotoIndex = null; // Nova foto
         }
 
         function applyOptimizations() {
@@ -186,10 +249,27 @@
             }
         }
 
+        function saveEditedPhoto() {
+            const dataUrl = photoCanvas.toDataURL('image/png');
+            if (editingPhotoIndex !== null) {
+                photos[editingPhotoIndex].dataUrl = dataUrl;
+            } else {
+                photos.push({ dataUrl });
+            }
+            optControls.style.display = 'none';
+            // Voltar à galeria automaticamente
+            showGallery();
+        }
+
         // ------- Modo Vídeo -------
         function setupVideoMode() {
             currentMode = 'video';
             clearControls();
+            hideAllSections();
+            videoContainer.style.display = 'block';
+            controls.style.display = 'flex';
+            recordControls.style.display = 'flex';
+            recordControls.appendChild(timerDisplay);
 
             const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
             const sel = document.createElement('select');
@@ -202,36 +282,27 @@
             sel.onchange = () => changeVideoResolution(sel.value);
             controls.appendChild(sel);
 
-            const stabBtn = document.createElement('button');
-            stabBtn.textContent = 'Estabilização (on/off)';
-            stabBtn.onclick = () => alert('Estabilização toggle (a implementar)');
-            controls.appendChild(stabBtn);
-
             const recordBtn = document.createElement('button');
             recordBtn.textContent = 'Iniciar Gravação';
             recordBtn.onclick = startRecording;
             controls.appendChild(recordBtn);
 
-            const stopBtn = document.createElement('button');
-            stopBtn.textContent = 'Parar Gravação';
+            pauseBtn.onclick = pauseRecording;
+            resumeBtn.onclick = resumeRecording;
             stopBtn.onclick = stopRecording;
-            controls.appendChild(stopBtn);
         }
 
         async function changeVideoResolution(label) {
             const mapping = {
-                "480p": { width: { ideal: 640 }, height: { ideal: 480 } },
-                "720p": { width: { ideal: 1280 }, height: { ideal: 720 } },
-                "1080p": { width: { ideal: 1920 }, height: { ideal: 1080 } },
-                "1440p": { width: { ideal: 2560 }, height: { ideal: 1440 } },
-                "2160p": { width: { ideal: 3840 }, height: { ideal: 2160 } }
+                "480p": { width: { exact: 640 }, height: { exact: 480 }, facingMode: 'environment' },
+                "720p": { width: { exact: 1280 }, height: { exact: 720 }, facingMode: 'environment' },
+                "1080p": { width: { exact: 1920 }, height: { exact: 1080 }, facingMode: 'environment' },
+                "1440p": { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment' },
+                "2160p": { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment' }
             };
             await initCamera({ video: mapping[label], audio: true });
-            setupVideoModeControls();
-        }
-
-        function setupVideoModeControls() {
-            // Recriar controles após mudar resolução
+            // Se funcionando, manter video mode controls
+            setupVideoMode();
         }
 
         function startRecording() {
@@ -244,8 +315,32 @@
                 return;
             }
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
-            mediaRecorder.onstop = saveRecording;
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                videos.push({ blob });
+                stopTimer();
+                showGallery();
+            };
             mediaRecorder.start();
+            startTimer();
+        }
+
+        function pauseRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.pause();
+                isPaused = true;
+                pauseBtn.style.display = 'none';
+                resumeBtn.style.display = 'inline-block';
+            }
+        }
+
+        function resumeRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'paused') {
+                mediaRecorder.resume();
+                isPaused = false;
+                resumeBtn.style.display = 'none';
+                pauseBtn.style.display = 'inline-block';
+            }
         }
 
         function stopRecording() {
@@ -254,23 +349,96 @@
             }
         }
 
-        function saveRecording() {
-            const blob = new Blob(recordedChunks, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            const videoElem = document.createElement('video');
-            videoElem.controls = true;
-            videoElem.src = url;
-            recordingsList.appendChild(videoElem);
+        // ------- Galeria -------
+        function showGallery() {
+            hideAllSections();
+            galleryContainer.style.display = 'block';
+            renderGallery();
         }
 
-        // ------- Eventos de Botões -------
+        function renderGallery() {
+            galleryItems.innerHTML = '';
+            // Fotos
+            photos.forEach((photo, index) => {
+                const div = document.createElement('div');
+                div.className = 'gallery-item';
+                const img = document.createElement('img');
+                img.src = photo.dataUrl;
+                div.appendChild(img);
+                const dlBtn = document.createElement('a');
+                dlBtn.textContent = 'Download';
+                dlBtn.href = photo.dataUrl;
+                dlBtn.download = `foto_${index + 1}.png`;
+                dlBtn.style.display = 'block';
+                div.appendChild(dlBtn);
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Editar';
+                editBtn.onclick = () => editPhoto(index);
+                div.appendChild(editBtn);
+                galleryItems.appendChild(div);
+            });
+            // Vídeos
+            videos.forEach((videoObj, index) => {
+                const div = document.createElement('div');
+                div.className = 'gallery-item';
+                const vid = document.createElement('video');
+                const url = URL.createObjectURL(videoObj.blob);
+                vid.src = url;
+                vid.controls = true;
+                div.appendChild(vid);
+                const dlBtn = document.createElement('a');
+                dlBtn.textContent = 'Download';
+                dlBtn.href = url;
+                dlBtn.download = `video_${index + 1}.webm`;
+                dlBtn.style.display = 'block';
+                div.appendChild(dlBtn);
+                galleryItems.appendChild(div);
+            });
+        }
+
+        function editPhoto(index) {
+            const photo = photos[index];
+            hideAllSections();
+            videoContainer.style.display = 'none';
+            controls.style.display = 'none';
+            photoContainer.style.display = 'block';
+            optControls.style.display = 'flex';
+            const img = new Image();
+            img.onload = () => {
+                photoCanvas.width = img.width;
+                photoCanvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = photo.dataUrl;
+            editingPhotoIndex = index;
+        }
+
+        function hideAllSections() {
+            videoContainer.style.display = 'none';
+            controls.style.display = 'none';
+            recordControls.style.display = 'none';
+            photoContainer.style.display = 'none';
+            optControls.style.display = 'none';
+            galleryContainer.style.display = 'none';
+        }
+
+        // Botões de navegação
         document.getElementById('photoModeBtn').onclick = async () => {
+            hideAllSections();
             await initCamera({ video: { facingMode: 'environment' }, audio: false });
             setupPhotoMode();
         };
         document.getElementById('videoModeBtn').onclick = async () => {
+            hideAllSections();
             await initCamera({ video: { facingMode: 'environment' }, audio: true });
             setupVideoMode();
+        };
+        document.getElementById('galleryBtn').onclick = () => showGallery();
+        document.getElementById('backToMainBtn').onclick = () => hideAllSections();
+
+        // Inicialização padrão
+        window.onload = () => {
+            hideAllSections();
         };
     </script>
 </body>
