@@ -6,8 +6,8 @@
     <title>App de Câmera Android</title>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #fff; display: flex; flex-direction: column; align-items: center; }
-        #videoContainer, #photoContainer, #controls, #galleryContainer { max-width: 600px; width: 100%; margin-top: 20px; }
-        video, canvas, img { width: 100%; border-radius: 8px; background: #000; }
+        #videoContainer, #photoContainer, #controls, #galleryContainer { max-width: 600px; width: 100%; margin-top: 20px; position: relative; }
+        video, canvas, img { width: 100%; aspect-ratio: 9/16; object-fit: cover; border-radius: 8px; background: #000; }
         #controls { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 10px; }
         button, select, input[type=range] { margin: 5px; padding: 10px; border: none; border-radius: 8px; background: #333; color: #fff; }
         button:hover, select:hover, input[type=range]:hover { background: #555; cursor: pointer; }
@@ -17,7 +17,18 @@
         #galleryItems { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
         .gallery-item { position: relative; }
         .gallery-item img, .gallery-item video { max-height: 200px; }
-        .gallery-item button { position: absolute; top: 5px; right: 5px; padding: 5px; background: rgba(0,0,0,0.7); }
+        .gallery-item button, .gallery-item a { position: absolute; top: 5px; right: 5px; padding: 5px; background: rgba(0,0,0,0.7); color: #fff; text-decoration: none; }
+        #zoomDisplay, #fpsDisplay { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); padding: 5px 8px; border-radius: 4px; font-size: 1em; }
+        #gridOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+        #gridOverlay::before, #gridOverlay::after { content: ''; position: absolute; width: 100%; height: 100%; }
+        /* Linhas horizontais e verticais para grade 3x3 */
+        #gridOverlay::before { background: 
+            linear-gradient(to right, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%),
+            linear-gradient(to bottom, transparent 32%, rgba(255,255,255,0.5) 33%, rgba(255,255,255,0.5) 34%, transparent 35%, transparent 65%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 67%, transparent 68%);
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+        }
+        #pipView { position: absolute; top: 10px; right: 10px; width: 100px; height: 178px; border: 2px solid #fff; }
     </style>
 </head>
 <body>
@@ -31,6 +42,10 @@
     <!-- Contêiner de vídeo -->
     <div id="videoContainer" style="display:none;">
         <video id="video" autoplay playsinline></video>
+        <div id="zoomDisplay">1x</div>
+        <div id="fpsDisplay">FPS: --</div>
+        <div id="gridOverlay"></div>
+        <canvas id="pipView"></canvas>
     </div>
     <!-- Controles principais -->
     <div id="controls" style="display:none;"></div>
@@ -41,6 +56,7 @@
         <button id="pauseRecordingBtn" style="display:none;">Pausar</button>
         <button id="resumeRecordingBtn" style="display:none;">Retomar</button>
         <button id="stopRecordingBtn" style="display:none;">Encerrar</button>
+        <button id="micToggleBtn">Mic: On</button>
     </div>
 
     <!-- Contêiner foto/canvas e otimização -->
@@ -54,6 +70,7 @@
             <button id="applyOptim">Aplicar Otimização</button>
             <button id="saveEditedPhotoBtn">Salvar Edição</button>
         </div>
+        <button id="gridToggleBtn">Grade: Off</button>
     </div>
 
     <!-- Galeria -->
@@ -76,6 +93,12 @@
         const pauseBtn = document.getElementById('pauseRecordingBtn');
         const resumeBtn = document.getElementById('resumeRecordingBtn');
         const stopBtn = document.getElementById('stopRecordingBtn');
+        const micToggleBtn = document.getElementById('micToggleBtn');
+        const zoomDisplay = document.getElementById('zoomDisplay');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const gridOverlay = document.getElementById('gridOverlay');
+        const gridToggleBtn = document.getElementById('gridToggleBtn');
+        const pipView = document.getElementById('pipView');
 
         const videoContainer = document.getElementById('videoContainer');
         const recordControls = document.getElementById('recordControls');
@@ -87,20 +110,25 @@
         let recordStartTime = 0;
         let recordTimerInterval = null;
         let isPaused = false;
+        let includeAudio = true;
 
         // Bancos de mídia
-        const photos = []; // { dataUrl: string }
-        const videos = []; // { blob: Blob }
+        const photos = [];
+        const videos = [];
         let editingPhotoIndex = null;
 
-        // Função para formatar tempo em mm:ss
+        // Aspectos de zoom e FPS
+        let currentZoom = 1;
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+
+        // Formata mm:ss
         function formatTime(seconds) {
             const m = String(Math.floor(seconds / 60)).padStart(2, '0');
             const s = String(seconds % 60).padStart(2, '0');
             return `${m}:${s}`;
         }
 
-        // Inicia o temporizador de gravação
         function startTimer() {
             recordStartTime = 0;
             timerDisplay.textContent = '00:00';
@@ -123,20 +151,22 @@
             isPaused = false;
         }
 
-        // Acessar câmera com restrições
         async function initCamera(constraints) {
             if (stream) {
                 stream.getTracks().forEach(t => t.stop());
             }
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (video.srcObject) video.srcObject = null;
                 video.srcObject = stream;
-                video.style.transform = 'scale(1)';
-                video.style.transformOrigin = 'center center';
+                currentZoom = 1;
+                updateZoomDisplay();
+                video.style.transform = `scale(${currentZoom})`;
                 videoContainer.style.display = 'block';
                 controls.style.display = 'flex';
+                startFPSCounter();
             } catch (e) {
-                if (e.name === 'OverconstrainedError' || e.name === 'NotReadableError' || e.name === 'NotSupportedError') {
+                if (['OverconstrainedError', 'NotReadableError', 'NotSupportedError'].includes(e.name)) {
                     alert('Qualidade não suportado');
                 } else if (e.name === 'NotAllowedError') {
                     alert('Permissão para câmera negada');
@@ -164,11 +194,11 @@
             controls.style.display = 'flex';
             photoContainer.style.display = 'block';
 
-            // Botões de zoom fixo e slider (usar CSS transform para zoom digital)
+            // Zoom fixo + slider
             [0.5, 1, 5].forEach(z => {
                 const btn = document.createElement('button');
                 btn.textContent = z + 'x';
-                btn.onclick = () => setZoomCSS(z);
+                btn.onclick = () => setZoom(z);
                 controls.appendChild(btn);
             });
             const zoomSlider = document.createElement('input');
@@ -176,10 +206,9 @@
             zoomSlider.min = 1;
             zoomSlider.max = 100;
             zoomSlider.value = 1;
-            zoomSlider.oninput = () => setZoomCSS(zoomSlider.value);
+            zoomSlider.oninput = () => setZoom(zoomSlider.value);
             controls.appendChild(zoomSlider);
 
-            // Botão capturar e otimizar
             const captureBtn = document.createElement('button');
             captureBtn.textContent = 'Capturar Foto';
             captureBtn.onclick = capturePhoto;
@@ -189,10 +218,19 @@
             photoContainer.appendChild(optControls);
             photoContainer.querySelector('#applyOptim').onclick = applyOptimizations;
             photoContainer.querySelector('#saveEditedPhotoBtn').onclick = saveEditedPhoto;
+
+            gridToggleBtn.onclick = toggleGrid;
         }
 
-        function setZoomCSS(value) {
-            video.style.transform = `scale(${value})`;
+        function setZoom(value) {
+            currentZoom = value;
+            video.style.transform = `scale(${currentZoom})`;
+            updateZoomDisplay();
+            updatePIP();
+        }
+
+        function updateZoomDisplay() {
+            zoomDisplay.textContent = `${currentZoom}x`;
         }
 
         function capturePhoto() {
@@ -200,7 +238,7 @@
             photoCanvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);
             optControls.style.display = 'flex';
-            editingPhotoIndex = null; // Nova foto
+            editingPhotoIndex = null;
         }
 
         function applyOptimizations() {
@@ -257,8 +295,13 @@
                 photos.push({ dataUrl });
             }
             optControls.style.display = 'none';
-            // Voltar à galeria automaticamente
-            showGallery();
+        }
+
+        function toggleGrid() {
+            const isOn = gridOverlay.style.display === 'block';
+            gridOverlay.style.display = isOn ? 'none' : 'block';
+            gridToggleBtn.style.background = isOn ? '#333' : '#0066cc';
+            gridToggleBtn.textContent = `Grade: ${isOn ? 'Off' : 'On'}`;
         }
 
         // ------- Modo Vídeo -------
@@ -270,6 +313,7 @@
             controls.style.display = 'flex';
             recordControls.style.display = 'flex';
             recordControls.appendChild(timerDisplay);
+            recordControls.appendChild(micToggleBtn);
 
             const resolutions = ["480p", "720p", "1080p", "1440p", "2160p"];
             const sel = document.createElement('select');
@@ -290,6 +334,7 @@
             pauseBtn.onclick = pauseRecording;
             resumeBtn.onclick = resumeRecording;
             stopBtn.onclick = stopRecording;
+            micToggleBtn.onclick = toggleMic;
         }
 
         async function changeVideoResolution(label) {
@@ -300,8 +345,7 @@
                 "1440p": { width: { exact: 2560 }, height: { exact: 1440 }, facingMode: 'environment' },
                 "2160p": { width: { exact: 3840 }, height: { exact: 2160 }, facingMode: 'environment' }
             };
-            await initCamera({ video: mapping[label], audio: true });
-            // Se funcionando, manter video mode controls
+            await initCamera({ video: mapping[label], audio: includeAudio });
             setupVideoMode();
         }
 
@@ -319,7 +363,6 @@
                 const blob = new Blob(recordedChunks, { type: 'video/webm' });
                 videos.push({ blob });
                 stopTimer();
-                showGallery();
             };
             mediaRecorder.start();
             startTimer();
@@ -349,6 +392,51 @@
             }
         }
 
+        function toggleMic() {
+            includeAudio = !includeAudio;
+            micToggleBtn.style.background = includeAudio ? '#0066cc' : '#333';
+            micToggleBtn.textContent = `Mic: ${includeAudio ? 'On' : 'Off'}`;
+            if (stream) {
+                const audioTracks = stream.getAudioTracks();
+                audioTracks.forEach(t => t.enabled = includeAudio);
+            }
+        }
+
+        // ------- FPS e PIP -------
+        function startFPSCounter() {
+            function update() {
+                const now = performance.now();
+                frameCount++;
+                if (now - lastFrameTime >= 1000) {
+                    fpsDisplay.textContent = `FPS: ${frameCount}`;
+                    frameCount = 0;
+                    lastFrameTime = now;
+                }
+                drawPIP();
+                requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+
+        function updatePIP() {
+            const w = pipView.width;
+            const h = pipView.height;
+            const ctxPip = pipView.getContext('2d');
+            ctxPip.drawImage(video, 0, 0, w, h);
+            // Desenhar retângulo que representa área zoom
+            const rectW = w / currentZoom;
+            const rectH = h / currentZoom;
+            ctxPip.strokeStyle = 'yellow';
+            ctxPip.lineWidth = 2;
+            ctxPip.strokeRect((w - rectW) / 2, (h - rectH) / 2, rectW, rectH);
+        }
+
+        function drawPIP() {
+            if (currentMode && (currentMode === 'photo' || currentMode === 'video')) {
+                updatePIP();
+            }
+        }
+
         // ------- Galeria -------
         function showGallery() {
             hideAllSections();
@@ -358,7 +446,6 @@
 
         function renderGallery() {
             galleryItems.innerHTML = '';
-            // Fotos
             photos.forEach((photo, index) => {
                 const div = document.createElement('div');
                 div.className = 'gallery-item';
@@ -369,7 +456,6 @@
                 dlBtn.textContent = 'Download';
                 dlBtn.href = photo.dataUrl;
                 dlBtn.download = `foto_${index + 1}.png`;
-                dlBtn.style.display = 'block';
                 div.appendChild(dlBtn);
                 const editBtn = document.createElement('button');
                 editBtn.textContent = 'Editar';
@@ -377,7 +463,6 @@
                 div.appendChild(editBtn);
                 galleryItems.appendChild(div);
             });
-            // Vídeos
             videos.forEach((videoObj, index) => {
                 const div = document.createElement('div');
                 div.className = 'gallery-item';
@@ -390,7 +475,6 @@
                 dlBtn.textContent = 'Download';
                 dlBtn.href = url;
                 dlBtn.download = `video_${index + 1}.webm`;
-                dlBtn.style.display = 'block';
                 div.appendChild(dlBtn);
                 galleryItems.appendChild(div);
             });
@@ -399,8 +483,6 @@
         function editPhoto(index) {
             const photo = photos[index];
             hideAllSections();
-            videoContainer.style.display = 'none';
-            controls.style.display = 'none';
             photoContainer.style.display = 'block';
             optControls.style.display = 'flex';
             const img = new Image();
